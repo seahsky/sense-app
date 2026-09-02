@@ -31,5 +31,30 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO
 
+      - name: Find an iOS Simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          for runtime, entries in devices.items():
+              if "iOS" not in runtime:
+                  continue
+              for d in entries:
+                  print(d["udid"])
+                  sys.exit(0)
+          sys.exit(1)
+          ')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
       - name: Run CindyKit unit tests
-        run: swift test --package-path Packages/CindyKit
+        # Plain `swift test` builds for the host (macOS) by default, but CindyKit
+        # imports WatchConnectivity and HealthKit, neither available on macOS.
+        # xcodebuild can build/test a Swift package directly (it recognizes
+        # Package.swift and exposes a scheme named after the package) targeting
+        # a real iOS Simulator, where those frameworks exist.
+        working-directory: Packages/CindyKit
+        run: |
+          xcodebuild test \
+            -scheme CindyKit \
+            -destination "id=${{ steps.sim.outputs.udid }}"
