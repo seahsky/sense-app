@@ -109,31 +109,29 @@ the Watch↔iPhone bridge, so both app targets score and format a session identi
    directly; it only receives already-finished sessions from the Watch over Watch
    Connectivity.
 
-## This repository has not been compiled
+## Build status
 
-This project was generated without access to Xcode or the Swift toolchain — no
-`swift build`, `xcodebuild`, or `xcodegen generate` has actually been run against it.
-Every file was hand-verified (import lists, brace/paren balance, and every `CindyKit`
-symbol cross-checked against its real declaration in `Packages/CindyKit/Sources`), but
-that is not a substitute for a real build. Before trusting this as working code, a
-developer with Xcode should:
+[![Build](https://github.com/seahsky/cindy-app/actions/workflows/build.yml/badge.svg?branch=claude/cindy-workout-tracker-app-u7ahnz)](https://github.com/seahsky/cindy-app/actions/workflows/build.yml)
 
-1. Run `xcodegen generate` and confirm it completes without errors.
-2. Open the generated `Cindy.xcodeproj` and build the `CindyApp` scheme for a
-   Watch-paired simulator — this compiles both `CindyApp` and `CindyWatch` plus the
-   `CindyKit` package dependency in one pass, and is the fastest way to catch anything
-   a static read-through missed.
-3. Run the `CindyKit` package's unit tests (`Packages/CindyKit` → Test navigator, or
-   `swift test` from `Packages/CindyKit`) — they cover the timer state machine, the
-   round/rep scoring logic, session payload round-tripping, and the trend/PR analytics.
-4. Run the app on a Watch-paired simulator and walk through one full flow: start a
+This project was generated without local access to Xcode or the Swift toolchain, so
+`.github/workflows/build.yml` runs `xcodegen generate`, then `xcodebuild build` for the
+`CindyApp` scheme (which compiles and embeds `CindyWatch`, plus the `CindyKit` package
+dependency, in one pass) against a real iOS Simulator on a macOS GitHub Actions runner —
+and it's green: the whole app compiles clean, and all `CindyKit` unit tests (timer state
+machine, round/rep scoring, session payload round-tripping, trend/PR analytics) pass via
+`xcodebuild test` run directly against the package.
+
+That covers compilation and business-logic correctness, not the on-device/simulator
+experience. Before trusting this as a finished app, still:
+
+1. Run the app on a Watch-paired simulator and walk through one full flow: start a
    session on the Watch, grant HealthKit permissions, log a few reps (button + Digital
    Crown), pause/resume, let the 20:00 (or use Baby Cindy's 12:00) cap run out or end
    it manually, confirm the Summary screen shows a score/duration, tap Save, and check
    it appears in Watch History and — via the Watch Connectivity relay — in the
    iPhone's Tracker/Trend tabs and Timer tab's Watch-mirror mode.
-5. On a physical device, confirm the Health app shows the saved workout with heart
+2. On a physical device, confirm the Health app shows the saved workout with heart
    rate and active energy, since the simulator's HealthKit data is synthetic.
-6. Add real app icon artwork — both `AppIcon.appiconset` catalogs currently have an
+3. Add real app icon artwork — both `AppIcon.appiconset` catalogs currently have an
    empty 1024×1024 slot, which doesn't block a Debug build but should be filled in
    before any TestFlight/App Store submission.
