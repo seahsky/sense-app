@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Cindy</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+
+	<!-- Marks this as a modern single-target watchOS app (no WatchKit Extension
+	     bundle) and lets it launch on its own without requiring the iPhone app
+	     to be reachable first. -->
+	<key>WKApplication</key>
+	<true/>
+	<key>WKRunsIndependentlyOfCompanionApp</key>
+	<true/>
+
+	<!-- "workout-processing" is what actually keeps the app (and the active
+	     HKWorkoutSession) alive in the background for the full AMRAP cap; "audio"
+	     is included so haptic/audio confirmation (WKInterfaceDevice.play) keeps
+	     firing reliably if the app is backgrounded mid-workout. No
+	     WKExtendedRuntimeSession is used anywhere in this app — see the
+	     architecture spec, §5 "HealthKit workout configuration". -->
+	<key>WKBackgroundModes</key>
+	<array>
+		<string>workout-processing</string>
+		<string>audio</string>
+	</array>
+
+	<key>NSHealthShareUsageDescription</key>
+	<string>Cindy reads your heart rate and active energy during a workout to show live stats and to save them with each completed session.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Cindy saves each completed Cindy AMRAP attempt to Health so its duration, heart rate, and active energy are recorded.</string>
+
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+</dict>
+</plist>

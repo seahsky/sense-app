@@ -1,0 +1,36 @@
+# Xcode / Swift build products
+.build/
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# XcodeGen-generated project — regenerate via `xcodegen generate` from project.yml
+*.xcodeproj/
+*.xcworkspace/
+
+# Swift Package Manager
+.swiftpm/
+Packages/CindyKit/.build/
+Packages/CindyKit/.swiftpm/
+.package.resolved
+Package.resolved
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Misc macOS
+.DS_Store
+
+# Instruments / profiling
+*.trace
+
+# Fastlane / CI artifacts (not currently used, ignore defensively)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
