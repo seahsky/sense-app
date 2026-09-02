@@ -16,10 +16,17 @@ already exist in this directory.
   build-setting substitutions) plus:
   - `WKApplication` = `true` and `WKRunsIndependentlyOfCompanionApp` = `true`
     — required so this is recognized as a modern single-target watchOS app.
-  - `WKBackgroundModes` = `["workout-processing", "audio"]` — `workout-processing`
-    is what keeps the app (and the active `HKWorkoutSession`) alive in the
-    background for the full AMRAP cap; `audio` keeps haptic/audio confirmation
-    firing reliably if the app is backgrounded mid-workout.
+  - `WKCompanionAppBundleIdentifier` = `com.cindyapp.ios` — required whenever a
+    watch app has a companion iOS app (this one does: `CindyApp`, embedded via
+    `project.yml`'s `dependencies: - target: CindyWatch, embed: true`).
+    `WKRunsIndependentlyOfCompanionApp` only means the phone doesn't need to be
+    reachable at runtime; it doesn't remove the need to declare the pairing.
+  - `WKBackgroundModes` = `["workout-processing"]` — the only value this key
+    accepts; it's what keeps the app (and the active `HKWorkoutSession`) alive
+    in the background for the full AMRAP cap.
+  - `UIBackgroundModes` = `["audio"]` — background audio/haptic confirmation
+    (`WKInterfaceDevice.play`) is declared via this key, not `WKBackgroundModes`
+    (whose only allowed value is `workout-processing`).
   - `NSHealthShareUsageDescription` / `NSHealthUpdateUsageDescription`.
 - `CindyWatch/CindyWatch.entitlements` — `com.apple.developer.healthkit` = `true`.
 - `CindyWatch/Assets.xcassets/` — catalog skeleton with an `AppIcon.appiconset`
@@ -36,9 +43,12 @@ already exist in this directory.
 2. **`CODE_SIGN_ENTITLEMENTS`**: `CindyWatch/CindyWatch.entitlements`. This is
    the one build setting that actually wires the HealthKit entitlement in —
    equivalent to ticking "HealthKit" under the target's Signing & Capabilities
-   tab in Xcode, which XcodeGen's `project.yml` doesn't have a first-class
-   `entitlements:` key for as of the spec's research pass, so point
-   `CODE_SIGN_ENTITLEMENTS` at the file directly.
+   tab in Xcode. XcodeGen does have a first-class target-level `entitlements:`
+   key (which can generate the `.entitlements` file itself from inline
+   `properties:`), but this project intentionally uses the already-authored
+   `CindyWatch/CindyWatch.entitlements` file instead, so point
+   `CODE_SIGN_ENTITLEMENTS` at it directly rather than having XcodeGen
+   generate one inline.
 
 3. **No separate "Background Modes" capability/entitlement is needed.**
    Unlike HealthKit, `WKBackgroundModes` is Info.plist-driven only (already
@@ -52,7 +62,7 @@ already exist in this directory.
 
 5. Everything else in the spec's §6 `project.yml` sketch for this target —
    `type: application`, `platform: watchOS`, `deploymentTarget: "10.0"`,
-   `sources: [CindyWatch]`, `PRODUCT_BUNDLE_IDENTIFIER: com.cindy.app.watchkitapp`,
+   `sources: [CindyWatch]`, `PRODUCT_BUNDLE_IDENTIFIER: com.cindyapp.watchkitapp`,
    and the `package: CindyKit` dependency — is unchanged; nothing above
    replaces it, only adds the entitlements wiring and the plist note.
 

@@ -48,9 +48,22 @@ struct ActiveWorkoutView: View {
                 .monospacedDigit()
                 .minimumScaleFactor(0.5)
 
-            ProgressView(timerInterval: interval, countsDown: true)
-                .progressViewStyle(.linear)
-                .tint(.green)
+            if let pausedAt {
+                // `ProgressView(timerInterval:countsDown:)` has no `pauseTime` parameter
+                // (unlike `Text(timerInterval:pauseTime:...)` above) and reads the system
+                // clock directly, so it would keep advancing while paused. Freeze it
+                // manually at the paused instant using the same remaining-time fraction
+                // `countsDown: true` would show.
+                let duration = interval.upperBound.timeIntervalSince(interval.lowerBound)
+                let remaining = min(duration, max(0, interval.upperBound.timeIntervalSince(pausedAt)))
+                ProgressView(value: remaining, total: duration)
+                    .progressViewStyle(.linear)
+                    .tint(.green)
+            } else {
+                ProgressView(timerInterval: interval, countsDown: true)
+                    .progressViewStyle(.linear)
+                    .tint(.green)
+            }
         }
 
         if let heartRate = sessionManager.currentHeartRate {

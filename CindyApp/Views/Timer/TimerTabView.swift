@@ -76,6 +76,14 @@ struct TimerTabView: View {
             engine = AmrapTimerEngine(capSeconds: newValue.timeCapSeconds)
         }
         .task {
+            // Seed from whatever context WCSession already cached before this view
+            // started observing (e.g. the app was cold-launched, or this tab opened,
+            // while a Watch workout was already mid-flight and no further
+            // `updateApplicationContext` call has fired since) — otherwise a
+            // still-live workout would show "No Live Workout" until the next update.
+            if let context = WatchLiveContext(userInfo: WatchConnectivityBridge.shared.latestLiveContext) {
+                liveContext = context
+            }
             // Foundation's async notification sequence (iOS 15+) rather than
             // `NotificationCenter.publisher(for:)`, which lives in Combine and
             // would need a separate import — this keeps the file to `SwiftUI` +

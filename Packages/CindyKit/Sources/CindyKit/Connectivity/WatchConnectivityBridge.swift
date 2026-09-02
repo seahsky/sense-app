@@ -20,6 +20,17 @@ public final class WatchConnectivityBridge: NSObject {
     public weak var delegate: CindyConnectivityDelegate?
     public private(set) var isReachable: Bool = false
 
+    /// The most recently received application-context payload, if any — mirrors
+    /// `WCSession.default.receivedApplicationContext`, the system's own cache of the
+    /// last context delivered to `session(_:didReceiveApplicationContext:)`. Lets a
+    /// late observer (e.g. `TimerTabView` attaching its notification loop after a
+    /// context already arrived, such as on a cold launch) seed itself synchronously
+    /// instead of waiting for the next `liveContextDidUpdateNotification` post.
+    public var latestLiveContext: [String: Any]? {
+        guard WCSession.isSupported() else { return nil }
+        return WCSession.default.receivedApplicationContext
+    }
+
     private override init() {
         super.init()
     }

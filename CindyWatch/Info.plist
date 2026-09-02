@@ -29,15 +29,26 @@
 	<key>WKRunsIndependentlyOfCompanionApp</key>
 	<true/>
 
+	<!-- Links this watch app to its iPhone companion app (CindyApp,
+	     com.cindyapp.ios per project.yml). Required whenever a watch app has a
+	     companion iOS app; since GENERATE_INFOPLIST_FILE is off for this target
+	     (see entitlements-and-plist-notes.md), Xcode never auto-populates it. -->
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>com.cindyapp.ios</string>
+
 	<!-- "workout-processing" is what actually keeps the app (and the active
-	     HKWorkoutSession) alive in the background for the full AMRAP cap; "audio"
-	     is included so haptic/audio confirmation (WKInterfaceDevice.play) keeps
-	     firing reliably if the app is backgrounded mid-workout. No
-	     WKExtendedRuntimeSession is used anywhere in this app — see the
+	     HKWorkoutSession) alive in the background for the full AMRAP cap. Its
+	     value is the *only* one WKBackgroundModes accepts — background audio /
+	     haptic confirmation (WKInterfaceDevice.play, via HapticSignal) is
+	     declared separately below via UIBackgroundModes, the same key iOS apps
+	     use. No WKExtendedRuntimeSession is used anywhere in this app — see the
 	     architecture spec, §5 "HealthKit workout configuration". -->
 	<key>WKBackgroundModes</key>
 	<array>
 		<string>workout-processing</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
 		<string>audio</string>
 	</array>
 
