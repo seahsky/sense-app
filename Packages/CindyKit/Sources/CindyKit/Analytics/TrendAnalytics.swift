@@ -39,6 +39,14 @@ public enum TrendAnalytics {
 }
 
 extension CindySession: Comparable {
+    // `@Model` classes don't get automatic `Equatable` synthesis (unlike structs),
+    // and `Comparable` requires it — identity (by `id`, the `@Attribute(.unique)`
+    // primary key) is the correct notion of equality for a model entity, distinct
+    // from `<`'s score-based ordering below.
+    public static func == (lhs: CindySession, rhs: CindySession) -> Bool {
+        lhs.id == rhs.id
+    }
+
     public static func < (lhs: CindySession, rhs: CindySession) -> Bool {
         (lhs.completedRounds, lhs.partialReps) < (rhs.completedRounds, rhs.partialReps)
     }
