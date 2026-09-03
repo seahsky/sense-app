@@ -49,12 +49,17 @@ jobs:
 
       - name: Run CindyKit unit tests
         # Plain `swift test` builds for the host (macOS) by default, but CindyKit
-        # imports WatchConnectivity and HealthKit, neither available on macOS.
-        # xcodebuild can build/test a Swift package directly (it recognizes
-        # Package.swift and exposes a scheme named after the package) targeting
-        # a real iOS Simulator, where those frameworks exist.
-        working-directory: Packages/CindyKit
+        # imports WatchConnectivity, which macOS does not have — so the tests need
+        # an iOS Simulator destination.
+        #
+        # Run through the project's CindyKitTests target rather than the package's
+        # own scheme. Testing a bare Package.swift makes xcodebuild infer supported
+        # platforms for an implicit workspace, which fails intermittently with
+        # "Supported platforms for the buildables in the current scheme is empty"
+        # and then offers no simulator destination at all. The project target uses
+        # the same destination resolution as every other target here.
         run: |
           xcodebuild test \
-            -scheme CindyKit \
+            -project Cindy.xcodeproj \
+            -scheme CindyKitTests \
             -destination "id=${{ steps.sim.outputs.udid }}"

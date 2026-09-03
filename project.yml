@@ -22,6 +22,8 @@ targets:
       base:
         INFOPLIST_FILE: CindyApp/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.cindyapp.ios
+        DEVELOPMENT_TEAM: PGK46N254T
+        CODE_SIGN_STYLE: Automatic
         PRODUCT_NAME: Cindy
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
@@ -41,7 +43,9 @@ targets:
     settings:
       base:
         INFOPLIST_FILE: CindyWatch/Info.plist
-        PRODUCT_BUNDLE_IDENTIFIER: com.cindyapp.watchkitapp
+        PRODUCT_BUNDLE_IDENTIFIER: com.cindyapp.ios.watchkitapp
+        DEVELOPMENT_TEAM: PGK46N254T
+        CODE_SIGN_STYLE: Automatic
         PRODUCT_NAME: Cindy Watch
         CODE_SIGN_ENTITLEMENTS: CindyWatch/CindyWatch.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -49,3 +53,37 @@ targets:
         SWIFT_VERSION: "5.10"
     dependencies:
       - package: CindyKit
+
+  # Hosts the CindyKit package's unit tests inside the app project.
+  #
+  # The tests can also be run straight from the package
+  # (`xcodebuild test -scheme CindyKit` in Packages/CindyKit), but that path
+  # depends on xcodebuild inferring supported platforms for a bare Package.swift,
+  # which fails intermittently with "Supported platforms for the buildables in the
+  # current scheme is empty" and then offers no simulator destination at all.
+  # Running them through the project uses the same destination resolution as every
+  # other target, so one working simulator is enough for the whole repo.
+  CindyKitTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Packages/CindyKit/Tests/CindyKitTests
+    dependencies:
+      - package: CindyKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cindyapp.ios.kittests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.10"
+        ENABLE_TESTABILITY: YES
+
+schemes:
+  CindyKitTests:
+    build:
+      targets:
+        CindyKitTests: [test]
+    test:
+      targets:
+        - CindyKitTests
+      gatherCoverageData: false

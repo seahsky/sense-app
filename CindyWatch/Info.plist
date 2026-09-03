@@ -37,8 +37,11 @@
 	<string>com.cindyapp.ios</string>
 
 	<!-- "workout-processing" is what actually keeps the app (and the active
-	     HKWorkoutSession) alive in the background for the full AMRAP cap. Its
-	     value is the *only* one WKBackgroundModes accepts — background audio /
+	     HKWorkoutSession) alive in the background for the full AMRAP cap, and it
+	     is also the precondition for CMBatchedSensorManager delivering any data
+	     at all. It is one of six values WKBackgroundModes accepts
+	     (workout-processing, self-care, mindfulness, physical-therapy, alarm,
+	     underwater-depth) and the only one this app needs. Background audio /
 	     haptic confirmation (WKInterfaceDevice.play, via HapticSignal) is
 	     declared separately below via UIBackgroundModes, the same key iOS apps
 	     use. No WKExtendedRuntimeSession is used anywhere in this app — see the
@@ -56,6 +59,17 @@
 	<string>Cindy reads your heart rate and active energy during a workout to show live stats and to save them with each completed session.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Cindy saves each completed Cindy AMRAP attempt to Health so its duration, heart rate, and active energy are recorded.</string>
+
+	<!-- Core Motion has no requestAuthorization API for raw accelerometer or
+	     device-motion data, so this key is the only permission surface for
+	     automatic rep detection. Apple DTS states CMMotionManager has never
+	     required it, and CMBatchedSensorManager's reference page documents
+	     nothing either way — but Apple's usage-key list is explicitly
+	     non-exhaustive and CMAltimeter was made to require the key in iOS 17.4
+	     without ever being added to it. One string here is cheaper than a crash
+	     on first sensor read mid-AMRAP. -->
+	<key>NSMotionUsageDescription</key>
+	<string>Cindy reads wrist motion during a workout to count your reps automatically. You can always log and correct reps by hand.</string>
 
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

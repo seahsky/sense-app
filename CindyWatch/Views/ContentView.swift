@@ -4,7 +4,8 @@ import CindyKit
 
 /// Root navigation shell. Routes Start -> Active -> Summary in a single linear
 /// flow, owning the `AmrapTimerEngine` / `RoundRepTracker` / `WorkoutSessionManager`
-/// for whichever attempt is currently in progress, plus a History entry point.
+/// / `MotionRepSensor` for whichever attempt is currently in progress, plus a
+/// History entry point.
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
 
@@ -22,10 +23,17 @@ struct ContentView: View {
     @State private var isRequestingAuthorization = false
     @State private var authorizationErrorMessage: String?
 
+    /// Persisted so the choice survives a relaunch — an athlete who turned
+    /// auto-count off after a bad session should not have to turn it off again
+    /// every time.
+    @AppStorage("isAutoCountEnabled") private var isAutoCountEnabled = true
+
     // In-progress workout state, live for the duration of one attempt.
     @State private var timerEngine: AmrapTimerEngine?
     @State private var tracker: RoundRepTracker?
     @State private var sessionManager = WorkoutSessionManager()
+    @State private var repSensor = MotionRepSensor()
+    @State private var sessionStartedAt = Date()
 
     // Snapshot handed from Active to Summary once the attempt ends.
     @State private var summaryVariant: CindyVariant = .rx
@@ -34,6 +42,7 @@ struct ContentView: View {
     @State private var summaryPartialReps: Int = 0
     @State private var summaryAverageHeartRate: Double?
     @State private var summaryActiveEnergyBurned: Double?
+    @State private var summaryDetectedRepFraction: Double?
 
     var body: some View {
         NavigationStack {
@@ -52,6 +61,7 @@ struct ContentView: View {
         case .start:
             StartSessionView(
                 selectedVariant: $selectedVariant,
+                isAutoCountEnabled: $isAutoCountEnabled,
                 isRequestingAuthorization: isRequestingAuthorization,
                 authorizationErrorMessage: authorizationErrorMessage,
                 onStart: startWorkout,
@@ -64,6 +74,9 @@ struct ContentView: View {
                     timerEngine: timerEngine,
                     tracker: tracker,
                     sessionManager: sessionManager,
+                    repSensor: repSensor,
+                    sessionStartedAt: sessionStartedAt,
+                    isAutoCountEnabled: isAutoCountEnabled,
                     onFinish: finishWorkout
                 )
             } else {
@@ -78,6 +91,7 @@ struct ContentView: View {
                 partialReps: summaryPartialReps,
                 averageHeartRate: summaryAverageHeartRate,
                 activeEnergyBurned: summaryActiveEnergyBurned,
+                detectedRepFraction: summaryDetectedRepFraction,
                 onSave: saveSession,
                 onDiscard: resetToStart
             )
@@ -86,6 +100,11 @@ struct ContentView: View {
 
     /// Requests HealthKit authorization, starts the `HKWorkoutSession`, and spins
     /// up a fresh `AmrapTimerEngine` + `RoundRepTracker` for this attempt.
+    ///
+    /// Motion sensing starts only *after* the workout session does, and that
+    /// ordering is a requirement rather than a tidiness preference:
+    /// `CMBatchedSensorManager` produces no data at all without an active
+    /// `HKWorkoutSession`.
     private func startWorkout() {
         isRequestingAuthorization = true
         authorizationErrorMessage = nil
@@ -102,8 +121,17 @@ struct ContentView: View {
                 await MainActor.run {
                     timerEngine = engine
                     tracker = repTracker
+                    sessionStartedAt = Date()
                     isRequestingAuthorization = false
                     route = .active
+
+                    if isAutoCountEnabled {
+                        repSensor.onRepsDetected = { [weak repTracker] count in
+                            guard let repTracker else { return }
+                            RepLogging.logDetected(count, into: repTracker)
+                        }
+                        repSensor.start(movement: repTracker.currentMovement)
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -125,6 +153,10 @@ struct ContentView: View {
         let duration = timerEngine.elapsed
         let rounds = tracker.completedRounds
         let reps = tracker.partialReps
+        let detectedFraction = isAutoCountEnabled ? tracker.detectedRepFraction : nil
+
+        repSensor.stop()
+        repSensor.onRepsDetected = nil
 
         sessionManager.finish { averageHeartRate, activeEnergyBurned in
             summaryVariant = variant
@@ -133,6 +165,7 @@ struct ContentView: View {
             summaryPartialReps = reps
             summaryAverageHeartRate = averageHeartRate
             summaryActiveEnergyBurned = activeEnergyBurned
+            summaryDetectedRepFraction = detectedFraction
             route = .summary
         }
     }
@@ -159,6 +192,8 @@ struct ContentView: View {
     }
 
     private func resetToStart() {
+        repSensor.stop()
+        repSensor.onRepsDetected = nil
         timerEngine = nil
         tracker = nil
         route = .start

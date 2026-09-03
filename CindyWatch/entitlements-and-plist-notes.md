@@ -21,13 +21,26 @@ already exist in this directory.
     `project.yml`'s `dependencies: - target: CindyWatch, embed: true`).
     `WKRunsIndependentlyOfCompanionApp` only means the phone doesn't need to be
     reachable at runtime; it doesn't remove the need to declare the pairing.
-  - `WKBackgroundModes` = `["workout-processing"]` — the only value this key
-    accepts; it's what keeps the app (and the active `HKWorkoutSession`) alive
-    in the background for the full AMRAP cap.
+  - `WKBackgroundModes` = `["workout-processing"]` — what keeps the app (and the
+    active `HKWorkoutSession`) alive in the background for the full AMRAP cap,
+    and the precondition for `CMBatchedSensorManager` delivering any data at all.
+    It is **one of six** values the key accepts (`workout-processing`,
+    `self-care`, `mindfulness`, `physical-therapy`, `alarm`, `underwater-depth`),
+    not the only one — an earlier revision of this file said otherwise and was
+    wrong. It is the only one this app needs.
   - `UIBackgroundModes` = `["audio"]` — background audio/haptic confirmation
-    (`WKInterfaceDevice.play`) is declared via this key, not `WKBackgroundModes`
-    (whose only allowed value is `workout-processing`).
+    (`WKInterfaceDevice.play`) is declared via this key rather than
+    `WKBackgroundModes`, since none of that key's six values covers audio.
   - `NSHealthShareUsageDescription` / `NSHealthUpdateUsageDescription`.
+  - `NSMotionUsageDescription` — added for automatic rep detection. Core Motion
+    exposes no `requestAuthorization` API for raw accelerometer or device-motion
+    data (the only one in the framework is on `CMFallDetectionManager`), so this
+    string is the entire permission surface. Apple DTS states `CMMotionManager`
+    has never required it and `CMBatchedSensorManager`'s reference page says
+    nothing either way, but Apple's usage-key list is explicitly non-exhaustive
+    and `CMAltimeter` was made to require the key in iOS 17.4 without ever being
+    added to that list. One string is cheaper than a crash on first sensor read
+    mid-AMRAP.
 - `CindyWatch/CindyWatch.entitlements` — `com.apple.developer.healthkit` = `true`.
 - `CindyWatch/Assets.xcassets/` — catalog skeleton with an `AppIcon.appiconset`
   (single 1024×1024 "universal"/watchos slot, no image assigned yet — add a
@@ -60,11 +73,23 @@ already exist in this directory.
    never touches Core Location, so skip `NSLocationWhenInUseUsageDescription`
    and the location capability entirely.
 
+4b. **No Core Motion entitlement or capability is needed either.** Apple's
+   entitlements index lists exactly one Core Motion entitlement,
+   `com.apple.developer.coremotion.head-pose` (spatial audio head tracking),
+   which is unrelated to accelerometer or device-motion access. Automatic rep
+   detection needs only the `NSMotionUsageDescription` string above;
+   `CindyWatch.entitlements` stays HealthKit-only.
+
 5. Everything else in the spec's §6 `project.yml` sketch for this target —
    `type: application`, `platform: watchOS`, `deploymentTarget: "10.0"`,
-   `sources: [CindyWatch]`, `PRODUCT_BUNDLE_IDENTIFIER: com.cindyapp.watchkitapp`,
-   and the `package: CindyKit` dependency — is unchanged; nothing above
-   replaces it, only adds the entitlements wiring and the plist note.
+   `sources: [CindyWatch]` and the `package: CindyKit` dependency — is
+   unchanged; nothing above replaces it, only adds the entitlements wiring and
+   the plist note.
+   The one correction is `PRODUCT_BUNDLE_IDENTIFIER`: it must be
+   `com.cindyapp.ios.watchkitapp`, not `com.cindyapp.watchkitapp`.
+   iOS rejects the install outright unless the watch app's bundle identifier is
+   the companion iOS app's identifier followed by a dot and one more segment
+   (`MIInstallerErrorDomain` 101, `WatchKitAppBundleIDNotPrefixed`).
 
 ## One HealthKit implementation note for whoever reviews the Swift side
 
