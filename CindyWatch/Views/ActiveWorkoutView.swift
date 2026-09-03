@@ -597,3 +597,87 @@ struct ActiveWorkoutView: View {
         }
     }
 }
+
+// MARK: - Previews
+//
+// The fastest way to work on this screen, and the only one that does not need a
+// workout session: previews construct the engine and tracker directly, so the
+// layout can be checked at every watch size without HealthKit or Core Motion.
+//
+// Always check the 40mm size first (Apple Watch SE 3 in the canvas device list).
+// At 162 x 197 pt it is the smallest screen any watchOS 10+ device has, and this
+// screen has no ScrollView any more — so content that does not fit is clipped
+// silently rather than becoming reachable.
+
+private func previewTracker(reps: Int, detected: Int) -> RoundRepTracker {
+    let tracker = RoundRepTracker(variant: .rx)
+    tracker.logReps(max(0, reps - detected), source: .manual)
+    tracker.logDetectedReps(detected)
+    return tracker
+}
+
+private func previewEngine() -> AmrapTimerEngine {
+    let engine = AmrapTimerEngine(capSeconds: 1200)
+    engine.start(at: Date().addingTimeInterval(-315))
+    return engine
+}
+
+#Preview("Mid round, mixed provenance") {
+    NavigationStack {
+        ActiveWorkoutView(
+            timerEngine: previewEngine(),
+            tracker: previewTracker(reps: 47, detected: 6),
+            sessionManager: WorkoutSessionManager(),
+            repSensor: MotionRepSensor(),
+            sessionStartedAt: Date().addingTimeInterval(-315),
+            isAutoCountEnabled: true,
+            onFinish: {}
+        )
+    }
+}
+
+/// The densest case: fifteen air-squat pips, the widest movement name, and a
+/// three-digit score. If anything clips, it clips here first.
+#Preview("Air squats, worst case") {
+    NavigationStack {
+        ActiveWorkoutView(
+            timerEngine: previewEngine(),
+            tracker: previewTracker(reps: 314, detected: 11),
+            sessionManager: WorkoutSessionManager(),
+            repSensor: MotionRepSensor(),
+            sessionStartedAt: Date().addingTimeInterval(-900),
+            isAutoCountEnabled: true,
+            onFinish: {}
+        )
+    }
+}
+
+/// One rep short of the boundary — the state that has to teach "keep tapping
+/// until it moves on" without any words.
+#Preview("Awaiting the boundary tap") {
+    NavigationStack {
+        ActiveWorkoutView(
+            timerEngine: previewEngine(),
+            tracker: previewTracker(reps: 4, detected: 4),
+            sessionManager: WorkoutSessionManager(),
+            repSensor: MotionRepSensor(),
+            sessionStartedAt: Date().addingTimeInterval(-20),
+            isAutoCountEnabled: true,
+            onFinish: {}
+        )
+    }
+}
+
+#Preview("Auto-count off") {
+    NavigationStack {
+        ActiveWorkoutView(
+            timerEngine: previewEngine(),
+            tracker: previewTracker(reps: 22, detected: 0),
+            sessionManager: WorkoutSessionManager(),
+            repSensor: MotionRepSensor(),
+            sessionStartedAt: Date().addingTimeInterval(-315),
+            isAutoCountEnabled: false,
+            onFinish: {}
+        )
+    }
+}

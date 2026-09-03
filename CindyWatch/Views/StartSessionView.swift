@@ -108,3 +108,37 @@ struct StartSessionView: View {
             .joined(separator: " · ")
     }
 }
+
+#Preview("Start") {
+    @Previewable @State var variant: CindyVariant = .rx
+    @Previewable @State var autoCount = true
+
+    NavigationStack {
+        StartSessionView(
+            selectedVariant: $variant,
+            isAutoCountEnabled: $autoCount,
+            isRequestingAuthorization: false,
+            authorizationErrorMessage: nil,
+            onStart: {},
+            onShowHistory: {}
+        )
+    }
+}
+
+/// The tallest this screen ever gets: a two-line authorization error on top of
+/// everything else.
+#Preview("Authorization failed") {
+    @Previewable @State var variant: CindyVariant = .weightedVest
+    @Previewable @State var autoCount = true
+
+    NavigationStack {
+        StartSessionView(
+            selectedVariant: $variant,
+            isAutoCountEnabled: $autoCount,
+            isRequestingAuthorization: false,
+            authorizationErrorMessage: "Couldn't start: the operation couldn't be completed.",
+            onStart: {},
+            onShowHistory: {}
+        )
+    }
+}
