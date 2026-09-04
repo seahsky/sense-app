@@ -105,7 +105,37 @@ public final class RoundRepTracker {
     /// no second source of truth appears, and `recompute()` is untouched — so the
     /// score stays derivable from the event list alone.
     public var detectedRepAllowance: Int {
-        max(0, repsRemainingInCurrentMovement - 1)
+        // The detector may not OPEN a movement block either, and the reason is
+        // measured. A block opens on the athlete's boundary tap, while they are
+        // still dropping off the bar or walking to the floor, and at that instant
+        // the allowance is at its widest — 4, 9 and 14. Every phantom-rep source
+        // the audit found discharges into exactly that window: the engine's
+        // watermark reset, the sensor batch that straddles the tap, and the
+        // band-pass priming transient. Requiring one asserted rep to open the
+        // block closes all three at once, for all three movements, with no
+        // threshold to tune and no signal processing involved.
+        //
+        // It is also the only defence that reaches the air squat. Two of Cindy's
+        // three movements anchor the wrist to something fixed, so their posture is
+        // recognisable; the squat's hand is free and reads the same as walking.
+        // See docs/research/posture-aware-rep-detection.md.
+        //
+        // The cost is one extra tap per movement, which is the interaction the
+        // athlete already knows: keep tapping until it moves on. That is a
+        // visible, bounded price. The alternative defences all fail silently.
+        guard hasAssertedRepInCurrentMovement else { return 0 }
+        return max(0, repsRemainingInCurrentMovement - 1)
+    }
+
+    /// True once the athlete has asserted at least one repetition of the movement
+    /// now in progress.
+    ///
+    /// Derived from `events` on every read rather than cached. A cached flag would
+    /// be a second source of truth that `undoLastRep`, the bulk undo and `reset`
+    /// would each have to keep in step, which is the class of bug this type's
+    /// derived-state design exists to prevent.
+    public var hasAssertedRepInCurrentMovement: Bool {
+        currentMovementEvents.contains { $0.source.isUserConfirmed }
     }
 
     /// True when the movement is one repetition from advancing, and that
@@ -155,6 +185,57 @@ public final class RoundRepTracker {
         let sequence = variant.movementSequence
         guard sequence.indices.contains(currentStepIndex) else { return 0 }
         return max(0, sequence[currentStepIndex].reps - repsInCurrentMovement)
+    }
+
+    /// The repetitions logged so far in the movement now in progress, oldest first.
+    ///
+    /// The slice, not a copy, because every caller here only counts or maps it.
+    public var currentMovementEvents: ArraySlice<RepEvent> {
+        guard repsInCurrentMovement > 0 else { return [] }
+        let start = events.count - repsInCurrentMovement
+        guard start >= 0, start <= events.count else { return [] }
+        return events[start...]
+    }
+
+    /// Where each repetition of the current movement came from, oldest first.
+    ///
+    /// The pip row renders from this rather than from a count, because a count
+    /// cannot say *which* pip was the watch's opinion. Rendering "n asserted then
+    /// m detected" from two integers silently relabels any detected rep that is
+    /// not part of the trailing run as the athlete's own, which is the one thing
+    /// ``RepPipRow`` exists to prevent.
+    public var currentMovementRepSources: [RepSource] {
+        currentMovementEvents.map(\.source)
+    }
+
+    /// How many repetitions of the current movement the app inferred.
+    public var detectedRepCountInCurrentMovement: Int {
+        currentMovementEvents.filter { $0.source == .detected }.count
+    }
+
+    /// Removes every repetition the app inferred in the movement now in progress,
+    /// keeping everything the athlete asserted.
+    ///
+    /// This is the correction the accuracy data demands, and it is deliberately
+    /// wider than ``undoTrailingDetectedReps()``. That one stops at the first
+    /// asserted rep, so an athlete who taps once to correct a runaway counter
+    /// breaks the trailing run and cements every phantom before it for the rest of
+    /// the attempt. Scoping to the current movement instead means the undo can
+    /// reach past an asserted rep, but never past the boundary the athlete
+    /// themselves closed — so it can clean up the block in progress and can never
+    /// rewrite a movement they already finished.
+    @discardableResult
+    public func undoDetectedRepsInCurrentMovement() -> Int {
+        let current = currentMovementEvents
+        guard !current.isEmpty else { return 0 }
+
+        let kept = current.filter { $0.source.isUserConfirmed }
+        let removed = current.count - kept.count
+        guard removed > 0 else { return 0 }
+
+        events.replaceSubrange(current.startIndex..<events.count, with: kept)
+        recompute()
+        return removed
     }
 
     /// How many of the trailing repetitions were inferred rather than asserted.

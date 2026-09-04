@@ -19,11 +19,19 @@ import SenseUI
 /// shape alone would fail at a glance; together they read.
 struct RepPipRow: View {
     let total: Int
-    let completed: Int
-    /// How many of the trailing completed reps came from the detector.
-    let detected: Int
+    /// Where each completed rep of this movement came from, oldest first.
+    ///
+    /// Provenance per rep, not two counts. Rendering "n asserted, then m
+    /// detected" from a pair of integers puts every asserted pip first regardless
+    /// of the real order, so a detected rep that is not part of the trailing run
+    /// is drawn as the athlete's own — tap, detect three, tap gives five solid
+    /// pips and launders three guesses into ground truth. That defeats the
+    /// requirement in this file's own doc comment.
+    let sources: [RepSource]
     /// The movement is one rep from advancing and that rep must come from a tap.
     let awaitingBoundaryRep: Bool
+
+    private var completed: Int { sources.count }
 
     @Environment(\.isLuminanceReduced) private var isLuminanceReduced
 
@@ -40,20 +48,22 @@ struct RepPipRow: View {
         // so 15 air-squat pips would overflow the padded row they actually own.
         // `maxWidth: .infinity` inside an HStack divides the row itself.
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(completed) of \(total) reps, \(detected) detected automatically")
+        .accessibilityLabel("\(completed) of \(total) reps, \(detectedCount) detected automatically")
     }
 
     @ViewBuilder
     private func pip(at index: Int) -> some View {
         let shape = Capsule(style: .continuous)
-        if index < manualCount {
-            // Asserted by the athlete: solid, full height.
-            shape.fill(SenseColor.assertedRep).frame(height: WatchLayout.pipHeight)
-        } else if index < completed {
-            // The watch's opinion: hollow and shorter, so provenance survives
-            // both a colour-blind athlete and a glance from arm's length.
-            shape.strokeBorder(SenseColor.detectedRep, lineWidth: 1.5)
-                .frame(height: WatchLayout.pipHeight)
+        if index < completed {
+            if sources[index].isUserConfirmed {
+                // Asserted by the athlete: solid, full height.
+                shape.fill(SenseColor.assertedRep).frame(height: WatchLayout.pipHeight)
+            } else {
+                // The watch's opinion: hollow and shorter, so provenance survives
+                // both a colour-blind athlete and a glance from arm's length.
+                shape.strokeBorder(SenseColor.detectedRep, lineWidth: 1.5)
+                    .frame(height: WatchLayout.pipHeight)
+            }
         } else if awaitingBoundaryRep && index == completed {
             // The rep the detector is not allowed to take. Marking it is what
             // teaches "keep tapping until it moves on" without any words.
@@ -65,17 +75,21 @@ struct RepPipRow: View {
         }
     }
 
-    private var manualCount: Int { max(0, completed - detected) }
-
-
+    private var detectedCount: Int { sources.filter { !$0.isUserConfirmed }.count }
 }
 
-#Preview("Mid set, mixed provenance") {
-    RepPipRow(total: 15, completed: 9, detected: 6, awaitingBoundaryRep: false)
+/// Builds a source list from a compact pattern: `m` asserted, `d` detected.
+/// Previews only — the real row reads `RoundRepTracker.currentMovementRepSources`.
+private func previewSources(_ pattern: String) -> [RepSource] {
+    pattern.map { $0 == "d" ? .detected : .manual }
+}
+
+#Preview("Mid set, interleaved provenance") {
+    RepPipRow(total: 15, sources: previewSources("mdddmddmd"), awaitingBoundaryRep: false)
         .padding()
 }
 
 #Preview("Awaiting the boundary tap") {
-    RepPipRow(total: 5, completed: 4, detected: 4, awaitingBoundaryRep: true)
+    RepPipRow(total: 5, sources: previewSources("mddd"), awaitingBoundaryRep: true)
         .padding()
 }

@@ -120,12 +120,33 @@ public struct RepDetectionEngine: Sendable {
 
         trimBuffer(latest: latest)
 
+        let profile = movement.repCountingProfile
+
+        // Seed the watermark to a warm-up horizon rather than leaving it at
+        // -.infinity, so nothing older than one warm-up window can ever be
+        // emitted as a repetition of this segment.
+        //
+        // A segment opens on the athlete's boundary tap, while they are still
+        // hanging off the bar or walking to the floor. On the batched tier the
+        // one-second batch that straddles that tap arrives *after* `beginSegment`
+        // has already reset us, so its pre-tap half — which holds the very rep the
+        // athlete just asserted — lands in a fresh buffer as the largest excursion
+        // in it. Left at -.infinity the watermark admits all of that at once,
+        // exactly when `RoundRepTracker.detectedRepAllowance` is at its widest.
+        //
+        // Keyed on the watermark itself, not on an empty buffer. The
+        // backwards-timestamp `reset()` above leaves the buffer non-empty by the
+        // time control reaches here, so a buffer test would silently fail to
+        // re-arm after a tier failover mid-set — which is precisely when the
+        // band-pass priming transient is largest and the seed matters most.
+        if emittedThrough == -.infinity, let earliest = buffer.first?.timestamp {
+            emittedThrough = earliest + profile.minPeriod * 2
+        }
+
         if let lastRecountAt, latest - lastRecountAt < configuration.recountInterval {
             return 0
         }
         lastRecountAt = latest
-
-        let profile = movement.repCountingProfile
 
         // Autocorrelation is meaningless until there is more than one repetition
         // of context, and a premature count is worse than a late one.

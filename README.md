@@ -28,22 +28,32 @@ machine-learning model, no training, no server — see
 [docs/research/automatic-rep-detection.md](docs/research/automatic-rep-detection.md)
 for why a trained model is the wrong first step here.
 
-The detector is never allowed to close a movement. It can log four of your five
-pull-ups, nine of ten push-ups, fourteen of fifteen air squats — the rep that
-moves the sequence on always comes from you. Published accuracy for these three
-movements runs 80–88% of sets within ±1 rep (the air squat is the worst), which
-means a counter you cannot audit would be useless: you would have to count in
-your head to notice an error, which is the whole labour the feature removes. You
-always know whether you have *finished*, so the app asks only that, once per
-movement: **keep tapping "+1 REP" until it moves on.** A round costs three taps
-instead of thirty.
+The detector is never allowed to open a movement or to close one. It can log
+three of your five pull-ups, eight of ten push-ups, thirteen of fifteen air
+squats — the rep that starts a block and the rep that moves the sequence on both
+come from you. Published accuracy for these three movements runs 80–88% of sets
+within ±1 rep (the air squat is the worst), which means a counter you cannot
+audit would be useless: you would have to count in your head to notice an error,
+which is the whole labour the feature removes. You always know whether you have
+*started* and whether you have *finished*, so the app asks only that: **keep
+tapping "+1 REP" until it moves on.** A round costs six taps instead of thirty.
 
-Every rep records where it came from, and the live screen shows it — green pips
-for reps you asserted, orange for the watch's guesses. Undo strikes the trailing
-run of automatic reps in one press without touching anything you logged by hand.
-Auto-count can be switched off before a session, and everything still works: the
-manual "+1 REP" button and the Digital Crown remain the ground truth, exactly as
-before.
+Requiring the opening tap is what stops the detector counting while you are still
+walking from the bar to the floor, which is where nearly every phantom rep came
+from — see
+[docs/research/rep-detection-precision.md](docs/research/rep-detection-precision.md).
+It is also the only defence that reaches the air squat, because two of the three
+movements anchor your wrist to something that does not move and the squat does
+not:
+[docs/research/posture-aware-rep-detection.md](docs/research/posture-aware-rep-detection.md).
+
+Every rep records where it came from, and the live screen shows it — solid pips
+for reps you asserted, hollow for the watch's guesses, in the order they actually
+happened. A long press on undo strikes every automatic rep in the movement you
+are on, without touching anything you logged by hand and without reaching back
+into a movement you already finished. Auto-count can be switched off before a
+session, and everything still works: the manual "+1 REP" button is the ground
+truth, and the Digital Crown becomes available as a second manual input.
 
 **Automatic: rest detection.** No sensor involved. Every rep is already a
 timestamped event, so rest is just "twelve seconds since the last one" — no
