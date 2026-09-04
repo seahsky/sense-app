@@ -76,7 +76,7 @@ type it in by hand.
 ## Repo layout
 
 ```
-cindy-app/
+sense-app/
 ├── project.yml                    XcodeGen spec — generates Sense.xcodeproj
 ├── CONTEXT.md                     Domain glossary (SENSE vs Cindy, rounds vs sets)
 ├── docs/adr/                      Architecture decision records
@@ -158,7 +158,7 @@ hand them over.
 
 ## Build status
 
-[![Build](https://github.com/seahsky/cindy-app/actions/workflows/build.yml/badge.svg?branch=claude/cindy-workout-tracker-app-u7ahnz)](https://github.com/seahsky/cindy-app/actions/workflows/build.yml)
+[![Build](https://github.com/seahsky/sense-app/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/seahsky/sense-app/actions/workflows/build.yml)
 
 This project was generated without local access to Xcode or the Swift toolchain, so
 `.github/workflows/build.yml` runs `xcodegen generate`, then `xcodebuild build` for the
