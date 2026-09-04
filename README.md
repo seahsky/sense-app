@@ -1,10 +1,17 @@
-# Cindy
+# S.E.N.S.E.
 
-A local-only iOS + watchOS app for tracking the CrossFit benchmark workout **"Cindy"**:
+SENSE (Sets, Effort, Notes, Streaks, Elapsed) is a local-only iOS + watchOS app for
+tracking the CrossFit benchmark workout **"Cindy"**:
 a 20-minute AMRAP (As Many Rounds As Possible) of 5 pull-ups, 10 push-ups, and 15 air
 squats, scored as rounds-plus-reps (e.g. `17+8`). The app runs the countdown, lets you
 log each rep round-by-round, and — on the Watch — records heart rate and active energy
 through HealthKit and saves the attempt as a workout in Health.
+
+**SENSE is the app; Cindy is the workout.** That distinction is deliberate and it is
+visible in the code: the shell is named `SenseApp` / `SenseWatch` / `SenseKit`, while the
+domain types that model the workout keep their name (`CindySession`, `CindyVariant`).
+See [CONTEXT.md](CONTEXT.md) for the glossary and
+[docs/adr/0001](docs/adr/0001-sense-is-the-product-cindy-is-the-workout.md) for why.
 
 Everything is local: there is no backend, no account, and no CloudKit sync. Each
 device (iPhone and Watch) keeps its own independent on-device store; a finished
@@ -70,10 +77,12 @@ type it in by hand.
 
 ```
 cindy-app/
-├── project.yml                    XcodeGen spec — generates Cindy.xcodeproj
+├── project.yml                    XcodeGen spec — generates Sense.xcodeproj
+├── CONTEXT.md                     Domain glossary (SENSE vs Cindy, rounds vs sets)
+├── docs/adr/                      Architecture decision records
 ├── .gitignore
-├── Packages/CindyKit/              Shared Swift package (iOS 17+ / watchOS 10+)
-│   ├── Sources/CindyKit/
+├── Packages/SenseKit/              Shared Swift package (iOS 17+ / watchOS 10+)
+│   ├── Sources/SenseKit/
 │   │   ├── Models/                 CindySession (SwiftData @Model), CindyVariant, Movement
 │   │   ├── Tracking/                AmrapTimerEngine (pause-aware countdown), RoundRepTracker
 │   │   │                            (score + rep events + the boundary gate), RepEvent,
@@ -86,9 +95,9 @@ cindy-app/
 │   │   ├── Connectivity/            SessionPayload (Codable DTO), WatchConnectivityBridge (WCSession)
 │   │   ├── Haptics/                 HapticSignal (watchOS-only)
 │   │   └── Analytics/                TrendAnalytics (personal records, pace, projections)
-│   └── Tests/CindyKitTests/         Unit tests, incl. synthetic-signal tests for the counter
-├── CindyApp/                       iOS app target
-│   ├── CindyApp.swift               App entry point, local ModelContainer
+│   └── Tests/SenseKitTests/         Unit tests, incl. synthetic-signal tests for the counter
+├── SenseApp/                       iOS app target
+│   ├── SenseApp.swift               App entry point, local ModelContainer
 │   ├── Connectivity/                 PhoneConnectivityHandler (receives finished Watch sessions)
 │   └── Views/
 │       ├── RootTabView.swift         Timer / Tracker / Trend tabs
@@ -96,8 +105,8 @@ cindy-app/
 │       ├── Tracker/                  Full iPhone-only session flow + manual backfill/edit
 │       ├── Trend/                    History, personal records, Swift Charts trend lines
 │       └── Shared/                   Variant picker, formatting helpers
-└── CindyWatch/                     watchOS app target (single-target, no WatchKit Extension)
-    ├── CindyWatchApp.swift          App entry point, local ModelContainer
+└── SenseWatch/                     watchOS app target (single-target, no WatchKit Extension)
+    ├── SenseWatchApp.swift          App entry point, local ModelContainer
     ├── Info.plist / .entitlements    HealthKit usage strings + capability
     ├── Workout/                      HealthKitAuthManager, WorkoutSessionManager (HKWorkoutSession
     │                                 + per-movement HKWorkoutActivity), MotionRepSensor
@@ -106,7 +115,7 @@ cindy-app/
                                      ScrollView; RepPipRow (rep provenance), WatchLayout, RepLogging
 ```
 
-`CindyKit` is the single source of truth for the data model, timer/score logic, and
+`SenseKit` is the single source of truth for the data model, timer/score logic, and
 the Watch↔iPhone bridge, so both app targets score and format a session identically.
 It also holds the whole rep-detection algorithm: `Sensing/` imports nothing but
 Foundation, so the counter is exercised against synthetic signals on an iOS
@@ -125,14 +134,14 @@ hand them over.
    ```
    xcodegen generate
    ```
-   This reads `project.yml` and produces `Cindy.xcodeproj` (git-ignored — regenerate
+   This reads `project.yml` and produces `Sense.xcodeproj` (git-ignored — regenerate
    it any time with the same command instead of committing it).
-4. Open `Cindy.xcodeproj` in Xcode.
-5. Select the **CindyApp** scheme.
+4. Open `Sense.xcodeproj` in Xcode.
+5. Select the **SenseApp** scheme.
 6. Choose a run destination: a paired iPhone + Apple Watch simulator (e.g. "iPhone 16
    Pro + Apple Watch Series 10" in the scheme's device list), or a physical
-   iPhone paired with a physical Apple Watch. Building `CindyApp` automatically embeds
-   and installs `CindyWatch` as its companion Watch app.
+   iPhone paired with a physical Apple Watch. Building `SenseApp` automatically embeds
+   and installs `SenseWatch` as its companion Watch app.
 7. Build and run (⌘R).
 8. On first launch of a session on the Watch, grant the HealthKit permissions when
    prompted:
@@ -140,7 +149,7 @@ hand them over.
    - **Read**: Heart Rate, Active Energy Burned, Workouts (so the live workout builder
      can report stats during and after the session)
 
-   No permissions are needed on the iPhone side — `CindyApp` never calls HealthKit
+   No permissions are needed on the iPhone side — `SenseApp` never calls HealthKit
    directly; it only receives already-finished sessions from the Watch over Watch
    Connectivity.
 
@@ -150,9 +159,9 @@ hand them over.
 
 This project was generated without local access to Xcode or the Swift toolchain, so
 `.github/workflows/build.yml` runs `xcodegen generate`, then `xcodebuild build` for the
-`CindyApp` scheme (which compiles and embeds `CindyWatch`, plus the `CindyKit` package
+`SenseApp` scheme (which compiles and embeds `SenseWatch`, plus the `SenseKit` package
 dependency, in one pass) against a real iOS Simulator on a macOS GitHub Actions runner —
-and it's green: the whole app compiles clean, and all `CindyKit` unit tests (timer state
+and it's green: the whole app compiles clean, and all `SenseKit` unit tests (timer state
 machine, round/rep scoring, session payload round-tripping, trend/PR analytics) pass via
 `xcodebuild test` run directly against the package.
 

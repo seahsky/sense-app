@@ -34,7 +34,7 @@ to this app: Cindy's movement sequence is fixed and known (5 pull-ups → 10
 push-ups → 15 air squats, repeating). `RoundRepTracker` already derives which of
 the three movements is current from the running rep count, with zero sensors
 involved.**
-[[RoundRepTracker.swift]](../../Packages/CindyKit/Sources/CindyKit/Tracking/RoundRepTracker.swift)
+[[RoundRepTracker.swift]](../../Packages/SenseKit/Sources/SenseKit/Tracking/RoundRepTracker.swift)
 That's the single hardest and most expensive part of general exercise recognition
 (academic systems spend most of their model capacity on "which of N exercises is
 this?"), and Cindy gets it for free by design.
@@ -180,7 +180,7 @@ brief mid-set pause (shaking out forearms between pull-ups) as a real break.
 
 ### Permissions and capabilities
 
-- **No new entitlement.** `CindyWatch.entitlements` stays HealthKit-only. Apple's
+- **No new entitlement.** `SenseWatch.entitlements` stays HealthKit-only. Apple's
   entitlements index lists exactly one Core Motion entitlement,
   `com.apple.developer.coremotion.head-pose` (spatial audio head tracking), which
   is unrelated.
@@ -197,7 +197,7 @@ brief mid-set pause (shaking out forearms between pull-ups) as a real break.
   non-exhaustive, and Apple made `CMAltimeter` require the key in iOS 17.4 without
   ever adding it to that list. Cost of adding it is one string; cost of omitting
   it if the gate moves is a crash on first sensor read mid-workout.
-  `CindyWatch/Info.plist` is hand-authored, so the key goes in the file directly,
+  `SenseWatch/Info.plist` is hand-authored, so the key goes in the file directly,
   not via an `INFOPLIST_KEY_*` build setting.
 
 ### Classical signal processing works, and is competitive with deep learning specifically for counting
@@ -537,7 +537,7 @@ confidence. The corrections that changed something:
 | 15 | "the same silicon already runs fall detection and swim stroke counting" | Apple has never said these run on the Neural Engine. Replaced with automatic workout detection, which Apple does list. |
 | 16 | Personalization citation | The paper validates "general model + a few user labels," not "train from scratch on one person." Cindy has no general model to start from. |
 | 17 | Phase 3 as a binary (DSP now, or label 10–20 sessions) | Adds the **few-shot exemplar** option, and notes `directoryWithDataAndAnnotation` makes labelling one CSV writer rather than a bespoke tool. |
-| 18 | (not addressed) | `WKBackgroundModes` accepts **six** values, not one — corrected in `CindyWatch/entitlements-and-plist-notes.md` too. |
+| 18 | (not addressed) | `WKBackgroundModes` accepts **six** values, not one — corrected in `SenseWatch/entitlements-and-plist-notes.md` too. |
 | 19 | watchOS 26 status | Confirmed: no native rep counting. Workout Buddy is voice encouragement only. |
 
 ## Further sources
