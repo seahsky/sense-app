@@ -80,7 +80,10 @@ cindy-app/
 ├── project.yml                    XcodeGen spec — generates Sense.xcodeproj
 ├── CONTEXT.md                     Domain glossary (SENSE vs Cindy, rounds vs sets)
 ├── docs/adr/                      Architecture decision records
+├── Tools/make-icons.py            Regenerates the app icons from SVG
 ├── .gitignore
+├── Packages/SenseUI/               Design system: palette, typography, web motif
+│   └── Sources/SenseUI/Resources/  Zilla Slab subset + its OFL licence text
 ├── Packages/SenseKit/              Shared Swift package (iOS 17+ / watchOS 10+)
 │   ├── Sources/SenseKit/
 │   │   ├── Models/                 CindySession (SwiftData @Model), CindyVariant, Movement
@@ -176,6 +179,6 @@ experience. Before trusting this as a finished app, still:
    iPhone's Tracker/Trend tabs and Timer tab's Watch-mirror mode.
 2. On a physical device, confirm the Health app shows the saved workout with heart
    rate and active energy, since the simulator's HealthKit data is synthetic.
-3. Add real app icon artwork — both `AppIcon.appiconset` catalogs currently have an
-   empty 1024×1024 slot, which doesn't block a Debug build but should be filled in
-   before any TestFlight/App Store submission.
+3. Check the app icon on a physical device. Both catalogs are filled (iOS carries
+   light, dark and tinted variants; the Watch carries a composition pulled inside
+   its circular mask), and `Tools/make-icons.py` regenerates all four from SVG.
