@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import SenseKit
+import SenseUI
 
 /// Manual round/rep logging usable entirely on iPhone — no Watch needed. Owns its
 /// own `AmrapTimerEngine` (for an accurate session duration and a live countdown)
@@ -26,6 +27,7 @@ struct TrackerTabView: View {
     var body: some View {
         NavigationStack {
             content
+                .senseBackground(.full)
                 .navigationTitle("Tracker")
                 .toolbar {
                     if stage == .setup {
@@ -96,7 +98,7 @@ struct TrackerTabView: View {
                     .font(.title.bold())
                 Text("\(tracker.repsInCurrentMovement) / \(currentTargetReps)")
                     .font(.title2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(SenseColor.inkSecondary)
             }
 
             HStack(spacing: 16) {
@@ -129,7 +131,7 @@ struct TrackerTabView: View {
 
                 Button("Finish") { finishSession() }
                     .buttonStyle(.bordered)
-                    .tint(.red)
+                    .tint(SenseColor.alert)
             }
         }
         .padding()
@@ -182,7 +184,7 @@ struct TrackerTabView: View {
                 .monospacedDigit()
             Text(title)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(SenseColor.inkSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)

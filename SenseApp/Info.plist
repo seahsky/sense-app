@@ -28,6 +28,14 @@
 	     NSHealthUpdateUsageDescription here only if/when a future iOS-side feature
 	     reads HealthKit directly. -->
 
+	<!-- The design system is a single dark palette: cream on near-black, with
+	     one set of contrast ratios verified against one ground. watchOS is dark
+	     by force anyway, so following the system appearance here would mean
+	     maintaining a second palette and re-checking every chart twice, for a
+	     surface that is meant to match the Watch. -->
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
+
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import SenseKit
+import SenseUI
 
 /// History list of all sessions plus summary stat tiles and Swift Charts trend
 /// visualization. Scores across different variants aren't comparable (per
@@ -74,6 +75,8 @@ struct TrendTabView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .senseBackground(.full)
             .navigationTitle("Trend")
             .sheet(item: $selectedSession) { session in
                 NavigationStack {

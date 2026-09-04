@@ -1,5 +1,6 @@
 import SwiftUI
 import SenseKit
+import SenseUI
 
 /// Timer tab: mirrors the live watch-driven timer (via `WatchConnectivityBridge`'s
 /// "latest state only" application-context channel) when a Watch workout is
@@ -42,6 +43,7 @@ struct TimerTabView: View {
                 Spacer(minLength: 0)
             }
             .padding(.top)
+            .senseBackground(.full)
             .navigationTitle("Timer")
             .toolbar {
                 if mode == .iPhone && engine.phase == .idle {
@@ -104,33 +106,33 @@ struct TimerTabView: View {
             VStack(spacing: 20) {
                 VStack(spacing: 4) {
                     Text(Formatting.clock(liveContext.elapsedSeconds))
-                        .font(.system(size: 64, weight: .bold, design: .rounded))
+                        .font(SenseFont.clock(size: 64))
                         .monospacedDigit()
                     Text("Elapsed")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(SenseColor.inkSecondary)
                 }
 
                 HStack(spacing: 32) {
                     VStack(spacing: 4) {
                         Text("\(liveContext.completedRounds)")
-                            .font(.title.bold())
+                            .font(SenseFont.clock(size: 26))
                         Text("Rounds")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(SenseColor.inkSecondary)
                     }
                     VStack(spacing: 4) {
                         Text(liveContext.scoreString)
-                            .font(.title.bold())
+                            .font(SenseFont.clock(size: 26))
                         Text("Score")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(SenseColor.inkSecondary)
                     }
                 }
 
                 Text("Live from Apple Watch · updated \(Formatting.sessionDate.string(from: liveContext.receivedAt))")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(SenseColor.inkSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
@@ -147,17 +149,17 @@ struct TimerTabView: View {
         VStack(spacing: 28) {
             if engine.phase == .running, let interval = engine.activeInterval {
                 Text(timerInterval: interval, countsDown: true, showsHours: false)
-                    .font(.system(size: 64, weight: .bold, design: .rounded))
+                    .font(SenseFont.clock(size: 64))
                     .monospacedDigit()
             } else {
                 Text(Formatting.clock(engine.remaining))
-                    .font(.system(size: 64, weight: .bold, design: .rounded))
+                    .font(SenseFont.clock(size: 64))
                     .monospacedDigit()
             }
 
             Text("\(variant.displayName) · \(Formatting.clock(variant.timeCapSeconds)) cap")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(SenseColor.inkSecondary)
 
             controls
         }
@@ -172,7 +174,7 @@ struct TimerTabView: View {
                 engine.start()
             } label: {
                 Text("Start")
-                    .font(.title3.bold())
+                    .font(SenseFont.display(size: 19))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
             }
@@ -185,7 +187,7 @@ struct TimerTabView: View {
                     .buttonStyle(.bordered)
                 Button("Finish") { engine.finish() }
                     .buttonStyle(.bordered)
-                    .tint(.red)
+                    .tint(SenseColor.alert)
             }
 
         case .paused:
@@ -194,7 +196,7 @@ struct TimerTabView: View {
                     .buttonStyle(.borderedProminent)
                 Button("Finish") { engine.finish() }
                     .buttonStyle(.bordered)
-                    .tint(.red)
+                    .tint(SenseColor.alert)
             }
 
         case .finished:

@@ -1,6 +1,7 @@
 import SwiftUI
 import Charts
 import SenseKit
+import SenseUI
 
 /// Plots `session.date` (x) against the rounds+reps score (y) across sessions.
 ///
@@ -33,12 +34,12 @@ struct ScoreTrendChart: View {
         Chart {
             if let personalRecord {
                 RuleMark(y: .value("Personal Record", personalRecord.totalReps))
-                    .foregroundStyle(.orange.opacity(0.5))
+                    .foregroundStyle(SenseColor.detectedRep.opacity(0.6))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
                     .annotation(position: .top, alignment: .trailing) {
                         Text("PR \(personalRecord.scoreString)")
                             .font(.caption2.bold())
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(SenseColor.detectedRep)
                     }
             }
 
@@ -48,19 +49,19 @@ struct ScoreTrendChart: View {
                     y: .value("Score", session.totalReps)
                 )
                 .interpolationMethod(.monotone)
-                .foregroundStyle(.blue)
+                .foregroundStyle(SenseColor.accentInk)
 
                 PointMark(
                     x: .value("Date", session.date),
                     y: .value("Score", session.totalReps)
                 )
-                .foregroundStyle(session.id == personalRecord?.id ? Color.orange : Color.blue)
+                .foregroundStyle(session.id == personalRecord?.id ? SenseColor.detectedRep : SenseColor.accentInk)
                 .symbolSize(session.id == personalRecord?.id ? 130 : 45)
             }
 
             if let selectedDate {
                 RuleMark(x: .value("Selected", selectedDate))
-                    .foregroundStyle(.gray.opacity(0.3))
+                    .foregroundStyle(SenseColor.inkTertiary.opacity(0.4))
             }
         }
         .chartXSelection(value: $selectedDate)

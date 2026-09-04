@@ -1,6 +1,7 @@
 import SwiftUI
 import Charts
 import SenseKit
+import SenseUI
 
 /// Plots average heart rate over time. Callers typically pre-filter to sessions
 /// that actually have a heart rate (Watch-sourced sessions); the empty-state
@@ -28,13 +29,13 @@ struct HeartRateTrendChart: View {
                     y: .value("Avg HR", session.averageHeartRate ?? 0)
                 )
                 .interpolationMethod(.monotone)
-                .foregroundStyle(.red)
+                .foregroundStyle(SenseColor.alert)
 
                 PointMark(
                     x: .value("Date", session.date),
                     y: .value("Avg HR", session.averageHeartRate ?? 0)
                 )
-                .foregroundStyle(.red)
+                .foregroundStyle(SenseColor.alert)
             }
             .chartYAxisLabel("BPM")
         }

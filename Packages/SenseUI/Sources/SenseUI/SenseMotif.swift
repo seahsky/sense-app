@@ -52,7 +52,7 @@ public struct WebMotif: View {
                     radials(in: proxy.size)
                     dashedRing(diameter: side * 0.86)
                     dashedRing(diameter: side * 1.24)
-                    centreScrim
+                    centreScrim(side: side)
                 }
             }
             .allowsHitTesting(false)
@@ -88,7 +88,10 @@ public struct WebMotif: View {
     /// sits: opaque ground at the centre, clear by the edges. The result reads as
     /// a web seen behind the screen rather than drawn on top of it, which is what
     /// the design reference actually looks like.
-    private var centreScrim: some View {
+    /// Radius scales with the container. A fixed value tuned on a 162 pt watch
+    /// screen would clear almost nothing on a 393 pt phone, which is where the web
+    /// covers the most area and needs the scrim most.
+    private func centreScrim(side: CGFloat) -> some View {
         RadialGradient(
             colors: [
                 SenseColor.ground,
@@ -97,7 +100,7 @@ public struct WebMotif: View {
             ],
             center: .center,
             startRadius: 0,
-            endRadius: 96
+            endRadius: side * 0.6
         )
     }
 
