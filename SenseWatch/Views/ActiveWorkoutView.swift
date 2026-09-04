@@ -1,5 +1,6 @@
 import SwiftUI
 import SenseKit
+import SenseUI
 
 /// The in-workout screen. **One screen, no scrolling, no pages.**
 ///
@@ -88,7 +89,11 @@ struct ActiveWorkoutView: View {
         .navigationTitle { titleChip }
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
-        .containerBackground(stateTint.opacity(isLuminanceReduced ? 0.10 : 0.20).gradient, for: .navigation)
+        .foregroundStyle(SenseColor.ink)
+        // Anchor ring only, never the full web: this is the screen the athlete
+        // reads mid-effort, and `senseBackground` drops even the ring in
+        // always-on, where the dimmed frame has no contrast to spare.
+        .senseBackground(.anchor, isLuminanceReduced: isLuminanceReduced)
         .focusable(true)
         .focused($isCrownFocused)
         // Re-asserted on every state change rather than only `.onAppear`: focus is
@@ -191,8 +196,7 @@ struct ActiveWorkoutView: View {
                     .foregroundStyle(autoTint)
             }
             Text(tracker.scoreString)
-                .font(.caption.weight(.semibold))
-                .monospacedDigit()
+                .font(SenseFont.clock(size: 14))
         }
         .lineLimit(1)
         .minimumScaleFactor(0.7)
@@ -207,8 +211,7 @@ struct ActiveWorkoutView: View {
         HStack(alignment: .lastTextBaseline, spacing: 4) {
             if let interval = timerEngine.activeInterval {
                 Text(timerInterval: interval, pauseTime: pausedAt, countsDown: true, showsHours: false)
-                    .font(.system(size: WatchLayout.clockFontSize, weight: .bold, design: .rounded))
-                    .monospacedDigit()
+                    .font(SenseFont.clock(size: WatchLayout.clockFontSize))
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                     .foregroundStyle(stateTint)
@@ -219,7 +222,7 @@ struct ActiveWorkoutView: View {
             Text(heartRateText)
                 .font(.caption2)
                 .monospacedDigit()
-                .foregroundStyle(.red)
+                .foregroundStyle(SenseColor.alert)
                 .lineLimit(1, reservesSpace: true)
         }
     }
@@ -262,15 +265,14 @@ struct ActiveWorkoutView: View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(tracker.currentMovement.displayName.uppercased())
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(SenseColor.inkSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
 
             Spacer(minLength: 2)
 
             Text("\(tracker.repsInCurrentMovement)/\(currentStepReps)")
-                .font(.system(size: WatchLayout.movementFontSize, weight: .bold, design: .rounded))
-                .monospacedDigit()
+                .font(SenseFont.clock(size: WatchLayout.movementFontSize))
                 .lineLimit(1)
         }
         .padding(.top, 3)
@@ -333,34 +335,36 @@ struct ActiveWorkoutView: View {
                     Label("Resume", systemImage: "play.fill")
                         .labelStyle(.iconOnly)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .foregroundStyle(SenseColor.ink)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .clipShape(Capsule())
+                .buttonStyle(.plain)
+                .background(SenseColor.accent, in: Capsule())
                 .accessibilityLabel("Resume")
 
-                Button(role: .destructive) {
+                Button {
                     showEndConfirmation = true
                 } label: {
                     Label("End", systemImage: "stop.fill")
                         .labelStyle(.iconOnly)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .foregroundStyle(SenseColor.alert)
                 }
-                .buttonStyle(.bordered)
-                .tint(.red)
-                .clipShape(Capsule())
+                .buttonStyle(.plain)
+                .background {
+                    Capsule().strokeBorder(SenseColor.alert, lineWidth: 1.5)
+                }
                 .accessibilityLabel("End workout")
             }
             .frame(height: WatchLayout.actionHeight)
         } else {
             Button(action: tapRep) {
                 Text("+1 REP")
-                    .font(.system(size: WatchLayout.isCompact ? 17 : 19, weight: .bold, design: .rounded))
+                    .font(SenseFont.display(size: WatchLayout.isCompact ? 16 : 18))
+                    .foregroundStyle(buttonLabel)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(buttonTint)
-            .clipShape(Capsule())
+            .buttonStyle(.plain)
+            .background(buttonFill, in: Capsule())
             .frame(height: WatchLayout.actionHeight)
         }
     }
@@ -382,20 +386,29 @@ struct ActiveWorkoutView: View {
     /// changes a word or a number. An athlete with a dimmed always-on display, or
     /// who is colour-blind, gets the same information.
     private var stateTint: Color {
-        if timerEngine.phase == .paused { return .yellow }
-        if activityState.isResting { return .orange }
-        return .green
+        if timerEngine.phase == .paused { return SenseColor.alert }
+        if activityState.isResting { return SenseColor.inkSecondary }
+        return SenseColor.ink
     }
 
-    private var buttonTint: Color {
-        tracker.isAwaitingBoundaryRep && isAutoCountEnabled ? .blue : .green
+    /// Working state fills the action with the accent. The boundary rep inverts it
+    /// to cream instead of reaching for another hue: the athlete has to notice this
+    /// change while breathing hard and possibly in always-on, and a fill that flips
+    /// from blue to near-white is a far bigger signal than any hue swap, while
+    /// still reading for someone who cannot separate the two colours at all.
+    private var buttonFill: Color {
+        tracker.isAwaitingBoundaryRep && isAutoCountEnabled ? SenseColor.ink : SenseColor.accent
+    }
+
+    private var buttonLabel: Color {
+        tracker.isAwaitingBoundaryRep && isAutoCountEnabled ? SenseColor.ground : SenseColor.ink
     }
 
     private var statusTint: Color {
-        if timerEngine.phase == .paused { return .yellow }
-        if tracker.isAwaitingBoundaryRep && isAutoCountEnabled { return .blue }
-        if activityState.isResting { return .orange }
-        return .secondary
+        if timerEngine.phase == .paused { return SenseColor.alert }
+        if tracker.isAwaitingBoundaryRep && isAutoCountEnabled { return SenseColor.accentInk }
+        if activityState.isResting { return SenseColor.inkSecondary }
+        return SenseColor.inkTertiary
     }
 
     private var statusText: String {
@@ -418,7 +431,7 @@ struct ActiveWorkoutView: View {
     }
 
     private var autoTint: Color {
-        repSensor.status.isRunning ? .green : .secondary
+        repSensor.status.isRunning ? SenseColor.accentInk : SenseColor.inkTertiary
     }
 
     // MARK: - Actions

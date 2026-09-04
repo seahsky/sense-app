@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import SenseKit
+import SenseUI
 
 /// iOS app entry point. Owns the phone's own local (non-CloudKit) `ModelContainer`
 /// — per the architecture spec, each device keeps an independent SwiftData store;
@@ -12,6 +13,10 @@ struct SenseApp: App {
     private let connectivityHandler: PhoneConnectivityHandler
 
     init() {
+        // Must run before any view is built: the display face lives in the
+        // SenseUI package bundle, which UIAppFonts cannot see.
+        SenseFont.register()
+
         let container: ModelContainer
         do {
             container = try SessionSchema.makeLocalContainer()

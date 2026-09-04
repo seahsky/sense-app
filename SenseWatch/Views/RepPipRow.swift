@@ -1,5 +1,6 @@
 import SwiftUI
 import SenseKit
+import SenseUI
 
 /// One pip per rep in the current movement, showing at a glance how many are done
 /// and — for each of them — whether the athlete asserted it or the watch guessed
@@ -14,8 +15,8 @@ import SenseKit
 /// Three channels carry the state, because one is never enough on a wrist at arm's
 /// length while breathing hard: **fill** (solid for reps the athlete asserted,
 /// hollow for the watch's guesses), **height** (full for done, half for pending),
-/// and **hue** (green, orange, grey). Colour alone would fail a colour-blind
-/// athlete; shape alone would fail at a glance; together they read.
+/// and **hue** (cream, red, dim). Colour alone would fail a colour-blind athlete;
+/// shape alone would fail at a glance; together they read.
 struct RepPipRow: View {
     let total: Int
     let completed: Int
@@ -47,19 +48,19 @@ struct RepPipRow: View {
         let shape = Capsule(style: .continuous)
         if index < manualCount {
             // Asserted by the athlete: solid, full height.
-            shape.fill(Color.green).frame(height: WatchLayout.pipHeight)
+            shape.fill(SenseColor.assertedRep).frame(height: WatchLayout.pipHeight)
         } else if index < completed {
             // The watch's opinion: hollow and shorter, so provenance survives
             // both a colour-blind athlete and a glance from arm's length.
-            shape.strokeBorder(Color.orange, lineWidth: 1.5)
+            shape.strokeBorder(SenseColor.detectedRep, lineWidth: 1.5)
                 .frame(height: WatchLayout.pipHeight)
         } else if awaitingBoundaryRep && index == completed {
             // The rep the detector is not allowed to take. Marking it is what
             // teaches "keep tapping until it moves on" without any words.
-            shape.fill(isLuminanceReduced ? Color.white.opacity(0.6) : Color.green.opacity(0.45))
+            shape.fill(SenseColor.assertedRep.opacity(isLuminanceReduced ? 0.6 : 0.45))
                 .frame(height: WatchLayout.pipHeight)
         } else {
-            shape.fill(Color.gray.opacity(isLuminanceReduced ? 0.5 : 0.3))
+            shape.fill(SenseColor.inkTertiary.opacity(isLuminanceReduced ? 0.5 : 0.3))
                 .frame(height: max(3, WatchLayout.pipHeight * 0.45))
         }
     }

@@ -48,6 +48,22 @@ enum WatchLayout {
 
     static var pipHeight: CGFloat { isCompact ? 7 : 9 }
 
+    /// Diameter of the Start screen's circular primary action.
+    ///
+    /// Bounded by height, not width. The Start screen still has to carry the
+    /// movement sequence and the auto-count toggle under the button, so the circle
+    /// gets what is left after those, capped so it never crowds the 162 pt width.
+    static var startDiameter: CGFloat {
+        let height = screenSize.height
+        if height < 205 { return 92 }    // 40mm
+        if height < 235 { return 104 }   // 41 / 42 / 44mm
+        return 116                       // 45 / 46 / 49mm
+    }
+
+    /// Kept at or above `SenseFont.minimumDisplaySize` on every screen size: the
+    /// display face loses its counters below 13 pt on a dark ground.
+    static var startLabelSize: CGFloat { isCompact ? 20 : 24 }
+
     /// Apple's HIG for watchOS: "Design your content to extend from one edge of
     /// the screen to the other… consider minimizing the padding between
     /// elements." At 162 pt wide, every point spent on a margin is a point the

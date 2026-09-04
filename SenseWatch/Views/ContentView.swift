@@ -48,6 +48,7 @@ struct ContentView: View {
         NavigationStack {
             content
         }
+        .task { applyUIPreviewRouteIfRequested() }
         .sheet(isPresented: $showHistory) {
             NavigationStack {
                 WatchHistoryView()
@@ -189,6 +190,57 @@ struct ContentView: View {
         WatchConnectivityBridge.shared.sendCompletedSession(session)
 
         resetToStart()
+    }
+
+    /// Jumps straight to a screen with synthetic state, so the live-workout and
+    /// summary layouts can be screenshotted on a simulator.
+    ///
+    /// Those two screens are otherwise unreachable without HealthKit
+    /// authorization and a real `HKWorkoutSession`, neither of which a simulator
+    /// grants unattended — which meant the densest screen in the app, and the only
+    /// one with a no-scroll guarantee to defend, could never be checked
+    /// automatically at the 40mm floor it is designed against.
+    ///
+    /// DEBUG-only and opt-in by launch argument, so it cannot reach a release
+    /// build or affect a normal run:
+    ///
+    ///     xcrun simctl launch <udid> <bundle-id> -SenseUIPreview active
+    private func applyUIPreviewRouteIfRequested() {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flagIndex = arguments.firstIndex(of: "-SenseUIPreview"),
+              arguments.index(after: flagIndex) < arguments.endIndex else { return }
+
+        let engine = AmrapTimerEngine(capSeconds: selectedVariant.timeCapSeconds)
+        let repTracker = RoundRepTracker(variant: selectedVariant)
+        engine.start()
+
+        // Mid-round, mid-movement, with a mix of provenance: the state that
+        // exercises every branch of the pip row at once.
+        RepLogging.logAsserted(5, source: .manual, into: repTracker)
+        RepLogging.logAsserted(10, source: .manual, into: repTracker)
+        RepLogging.logAsserted(4, source: .manual, into: repTracker)
+        RepLogging.logDetected(5, into: repTracker)
+
+        switch arguments[arguments.index(after: flagIndex)] {
+        case "active":
+            timerEngine = engine
+            tracker = repTracker
+            sessionStartedAt = Date()
+            route = .active
+        case "summary":
+            summaryVariant = selectedVariant
+            summaryDurationSeconds = 1200
+            summaryCompletedRounds = 17
+            summaryPartialReps = 8
+            summaryAverageHeartRate = 164
+            summaryActiveEnergyBurned = 287
+            summaryDetectedRepFraction = 0.61
+            route = .summary
+        default:
+            break
+        }
+        #endif
     }
 
     private func resetToStart() {

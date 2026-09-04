@@ -10,6 +10,8 @@ options:
 packages:
   SenseKit:
     path: Packages/SenseKit
+  SenseUI:
+    path: Packages/SenseUI
 
 targets:
   SenseApp:
@@ -33,6 +35,7 @@ targets:
       - target: SenseWatch
         embed: true
       - package: SenseKit
+      - package: SenseUI
 
   SenseWatch:
     type: application
@@ -53,6 +56,7 @@ targets:
         SWIFT_VERSION: "5.10"
     dependencies:
       - package: SenseKit
+      - package: SenseUI
 
   # Hosts the SenseKit package's unit tests inside the app project.
   #

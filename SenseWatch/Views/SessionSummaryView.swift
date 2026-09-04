@@ -1,5 +1,6 @@
 import SwiftUI
 import SenseKit
+import SenseUI
 
 /// Post-workout screen: final score, the session's stats, and Save or Discard.
 /// **No scrolling** — the whole thing fits at the 40mm floor.
@@ -27,14 +28,13 @@ struct SessionSummaryView: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("\(completedRounds)+\(partialReps)")
-                .font(.system(size: WatchLayout.isCompact ? 40 : 46, weight: .bold, design: .rounded))
-                .monospacedDigit()
+                .font(SenseFont.clock(size: WatchLayout.isCompact ? 38 : 44))
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
 
             Text("rounds + reps")
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(SenseColor.inkSecondary)
 
             // One row of four compact stats instead of four labelled rows. At
             // 162 pt wide a "Duration        20:00" row spends most of its width
@@ -59,24 +59,28 @@ struct SessionSummaryView: View {
                 // Confirmed, and set well apart from Save. This tap destroys a
                 // finished 20-minute attempt that exists nowhere else yet —
                 // nothing is written to the store until `onSave`.
-                Button(role: .destructive) {
+                Button {
                     showDiscardConfirmation = true
                 } label: {
                     Image(systemName: "trash")
+                        .foregroundStyle(SenseColor.alert)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .buttonStyle(.bordered)
-                .frame(width: 44)
+                .buttonStyle(.plain)
+                .background { Circle().strokeBorder(SenseColor.alert, lineWidth: 1.5) }
+                // Square, so the capsule renders as a circle rather than the
+                // vertical pill a 44 x 56 capsule gives next to a horizontal Save.
+                .frame(width: WatchLayout.actionHeight)
                 .accessibilityLabel("Discard")
 
                 Button(action: onSave) {
                     Text("Save")
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .font(SenseFont.display(size: 16))
+                        .foregroundStyle(SenseColor.ink)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .clipShape(Capsule())
+                .buttonStyle(.plain)
+                .background(SenseColor.accent, in: Capsule())
             }
             .frame(height: WatchLayout.actionHeight)
         }
@@ -85,7 +89,8 @@ struct SessionSummaryView: View {
         .navigationTitle { titleChip }
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
-        .containerBackground(Color.green.opacity(0.18).gradient, for: .navigation)
+        .foregroundStyle(SenseColor.ink)
+        .senseBackground(.full)
         .confirmationDialog(
             "Discard this workout?",
             isPresented: $showDiscardConfirmation,
@@ -99,6 +104,7 @@ struct SessionSummaryView: View {
     private var titleChip: some View {
         Text(variant.displayName)
             .font(.caption.weight(.semibold))
+            .foregroundStyle(SenseColor.inkSecondary)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
     }
@@ -108,11 +114,12 @@ struct SessionSummaryView: View {
             Text(value)
                 .font(.footnote.weight(.semibold))
                 .monospacedDigit()
+                .foregroundStyle(SenseColor.accentInk)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             Text(label)
                 .font(.system(size: 9))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(SenseColor.inkTertiary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
