@@ -1,10 +1,17 @@
-# Cindy
+# S.E.N.S.E.
 
-A local-only iOS + watchOS app for tracking the CrossFit benchmark workout **"Cindy"**:
+SENSE (Sets, Effort, Notes, Streaks, Elapsed) is a local-only iOS + watchOS app for
+tracking the CrossFit benchmark workout **"Cindy"**:
 a 20-minute AMRAP (As Many Rounds As Possible) of 5 pull-ups, 10 push-ups, and 15 air
 squats, scored as rounds-plus-reps (e.g. `17+8`). The app runs the countdown, lets you
 log each rep round-by-round, and — on the Watch — records heart rate and active energy
 through HealthKit and saves the attempt as a workout in Health.
+
+**SENSE is the app; Cindy is the workout.** That distinction is deliberate and it is
+visible in the code: the shell is named `SenseApp` / `SenseWatch` / `SenseKit`, while the
+domain types that model the workout keep their name (`CindySession`, `CindyVariant`).
+See [CONTEXT.md](CONTEXT.md) for the glossary and
+[docs/adr/0001](docs/adr/0001-sense-is-the-product-cindy-is-the-workout.md) for why.
 
 Everything is local: there is no backend, no account, and no CloudKit sync. Each
 device (iPhone and Watch) keeps its own independent on-device store; a finished
@@ -13,21 +20,42 @@ storage.
 
 ## What tracking is actually automatic, and what's manual
 
-**Manual: every rep and round.** There is no motion-based rep counter in this app.
-HealthKit and Core Motion have no public API that reliably recognizes and counts
-individual pull-ups, push-ups, or air squats — the kind of per-rep classification
-that exists for the app would require training and shipping a custom motion model,
-which is out of scope for a local-only single-repo build. So logging reps is a
-deliberate, first-class interaction instead of a guess: tap "+1 REP" on the Watch (or
-turn the Digital Crown, which logs/undoes reps one at a time with haptic feedback per
-detent) or tap "+1 Rep" in the iPhone Tracker tab. The app turns that tally into the
-official rounds+reps score via the fixed 5/10/15 movement sequence — you just have to
-tell it when a rep happens.
+**Automatic, with the athlete closing every set: reps on the Watch.** The Watch
+counts reps from wrist motion while you work, using a classical signal-processing
+pipeline (band-pass → principal-component projection → autocorrelation-refined
+peak counting) run only for the movement the app already knows you are on. No
+machine-learning model, no training, no server — see
+[docs/research/automatic-rep-detection.md](docs/research/automatic-rep-detection.md)
+for why a trained model is the wrong first step here.
+
+The detector is never allowed to close a movement. It can log four of your five
+pull-ups, nine of ten push-ups, fourteen of fifteen air squats — the rep that
+moves the sequence on always comes from you. Published accuracy for these three
+movements runs 80–88% of sets within ±1 rep (the air squat is the worst), which
+means a counter you cannot audit would be useless: you would have to count in
+your head to notice an error, which is the whole labour the feature removes. You
+always know whether you have *finished*, so the app asks only that, once per
+movement: **keep tapping "+1 REP" until it moves on.** A round costs three taps
+instead of thirty.
+
+Every rep records where it came from, and the live screen shows it — green pips
+for reps you asserted, orange for the watch's guesses. Undo strikes the trailing
+run of automatic reps in one press without touching anything you logged by hand.
+Auto-count can be switched off before a session, and everything still works: the
+manual "+1 REP" button and the Digital Crown remain the ground truth, exactly as
+before.
+
+**Automatic: rest detection.** No sensor involved. Every rep is already a
+timestamped event, so rest is just "twelve seconds since the last one" — no
+motion classifier to tune, no false positives from sensor noise.
 
 **Automatic: the workout session, heart rate, and energy — on the Watch.** Starting a
 session on the Watch starts a real `HKWorkoutSession` + `HKLiveWorkoutBuilder`
 (activity type `.crossTraining`), which the OS keeps running in the background for the
-full 20:00 cap without any extra code to keep the app alive. While it runs, live heart
+full 20:00 cap without any extra code to keep the app alive. That session is also
+what makes motion sensing possible at all — `CMBatchedSensorManager` delivers no
+data without one. Each movement is recorded into the saved workout as its own
+`HKWorkoutActivity`, so Health shows per-movement timing and heart rate. While it runs, live heart
 rate streams in automatically and is shown on screen; average heart rate and total
 active energy burned are computed automatically when the session ends and are saved
 with the session. The finished workout is written to Health automatically too. None of
@@ -48,19 +76,31 @@ type it in by hand.
 ## Repo layout
 
 ```
-cindy-app/
-├── project.yml                    XcodeGen spec — generates Cindy.xcodeproj
+sense-app/
+├── project.yml                    XcodeGen spec — generates Sense.xcodeproj
+├── CONTEXT.md                     Domain glossary (SENSE vs Cindy, rounds vs sets)
+├── docs/adr/                      Architecture decision records
+├── Tools/make-icons.py            Regenerates the app icons from SVG
 ├── .gitignore
-├── Packages/CindyKit/              Shared Swift package (iOS 17+ / watchOS 10+)
-│   ├── Sources/CindyKit/
+├── Packages/SenseUI/               Design system: palette, typography, web motif
+│   └── Sources/SenseUI/Resources/  Zilla Slab subset + its OFL licence text
+├── Packages/SenseKit/              Shared Swift package (iOS 17+ / watchOS 10+)
+│   ├── Sources/SenseKit/
 │   │   ├── Models/                 CindySession (SwiftData @Model), CindyVariant, Movement
-│   │   ├── Tracking/                AmrapTimerEngine (pause-aware countdown), RoundRepTracker (score)
+│   │   ├── Tracking/                AmrapTimerEngine (pause-aware countdown), RoundRepTracker
+│   │   │                            (score + rep events + the boundary gate), RepEvent,
+│   │   │                            RestDetection (sensor-free, pure)
+│   │   ├── Sensing/                 The rep counter, all pure and Foundation-only:
+│   │   │                            Bandpass (Butterworth biquads), PrincipalAxis (PCA),
+│   │   │                            RepPeakCounter (RecoFit's three passes),
+│   │   │                            RepDetectionEngine (rolling buffer, stateless recount),
+│   │   │                            MotionSample + Decimator
 │   │   ├── Connectivity/            SessionPayload (Codable DTO), WatchConnectivityBridge (WCSession)
 │   │   ├── Haptics/                 HapticSignal (watchOS-only)
 │   │   └── Analytics/                TrendAnalytics (personal records, pace, projections)
-│   └── Tests/CindyKitTests/         Unit tests for the above
-├── CindyApp/                       iOS app target
-│   ├── CindyApp.swift               App entry point, local ModelContainer
+│   └── Tests/SenseKitTests/         Unit tests, incl. synthetic-signal tests for the counter
+├── SenseApp/                       iOS app target
+│   ├── SenseApp.swift               App entry point, local ModelContainer
 │   ├── Connectivity/                 PhoneConnectivityHandler (receives finished Watch sessions)
 │   └── Views/
 │       ├── RootTabView.swift         Timer / Tracker / Trend tabs
@@ -68,15 +108,22 @@ cindy-app/
 │       ├── Tracker/                  Full iPhone-only session flow + manual backfill/edit
 │       ├── Trend/                    History, personal records, Swift Charts trend lines
 │       └── Shared/                   Variant picker, formatting helpers
-└── CindyWatch/                     watchOS app target (single-target, no WatchKit Extension)
-    ├── CindyWatchApp.swift          App entry point, local ModelContainer
+└── SenseWatch/                     watchOS app target (single-target, no WatchKit Extension)
+    ├── SenseWatchApp.swift          App entry point, local ModelContainer
     ├── Info.plist / .entitlements    HealthKit usage strings + capability
-    ├── Workout/                      HealthKitAuthManager, WorkoutSessionManager (HKWorkoutSession)
-    └── Views/                       Start → Active → Summary flow, rep controls, history
+    ├── Workout/                      HealthKitAuthManager, WorkoutSessionManager (HKWorkoutSession
+    │                                 + per-movement HKWorkoutActivity), MotionRepSensor
+    │                                 (the only Core Motion file in the repo)
+    └── Views/                       Start → Active → Summary flow, all single-screen with no
+                                     ScrollView; RepPipRow (rep provenance), WatchLayout, RepLogging
 ```
 
-`CindyKit` is the single source of truth for the data model, timer/score logic, and
+`SenseKit` is the single source of truth for the data model, timer/score logic, and
 the Watch↔iPhone bridge, so both app targets score and format a session identically.
+It also holds the whole rep-detection algorithm: `Sensing/` imports nothing but
+Foundation, so the counter is exercised against synthetic signals on an iOS
+simulator, and `MotionRepSensor` on the Watch does nothing but acquire samples and
+hand them over.
 
 ## Setup (macOS)
 
@@ -90,14 +137,14 @@ the Watch↔iPhone bridge, so both app targets score and format a session identi
    ```
    xcodegen generate
    ```
-   This reads `project.yml` and produces `Cindy.xcodeproj` (git-ignored — regenerate
+   This reads `project.yml` and produces `Sense.xcodeproj` (git-ignored — regenerate
    it any time with the same command instead of committing it).
-4. Open `Cindy.xcodeproj` in Xcode.
-5. Select the **CindyApp** scheme.
+4. Open `Sense.xcodeproj` in Xcode.
+5. Select the **SenseApp** scheme.
 6. Choose a run destination: a paired iPhone + Apple Watch simulator (e.g. "iPhone 16
    Pro + Apple Watch Series 10" in the scheme's device list), or a physical
-   iPhone paired with a physical Apple Watch. Building `CindyApp` automatically embeds
-   and installs `CindyWatch` as its companion Watch app.
+   iPhone paired with a physical Apple Watch. Building `SenseApp` automatically embeds
+   and installs `SenseWatch` as its companion Watch app.
 7. Build and run (⌘R).
 8. On first launch of a session on the Watch, grant the HealthKit permissions when
    prompted:
@@ -105,19 +152,19 @@ the Watch↔iPhone bridge, so both app targets score and format a session identi
    - **Read**: Heart Rate, Active Energy Burned, Workouts (so the live workout builder
      can report stats during and after the session)
 
-   No permissions are needed on the iPhone side — `CindyApp` never calls HealthKit
+   No permissions are needed on the iPhone side — `SenseApp` never calls HealthKit
    directly; it only receives already-finished sessions from the Watch over Watch
    Connectivity.
 
 ## Build status
 
-[![Build](https://github.com/seahsky/cindy-app/actions/workflows/build.yml/badge.svg?branch=claude/cindy-workout-tracker-app-u7ahnz)](https://github.com/seahsky/cindy-app/actions/workflows/build.yml)
+[![Build](https://github.com/seahsky/sense-app/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/seahsky/sense-app/actions/workflows/build.yml)
 
 This project was generated without local access to Xcode or the Swift toolchain, so
 `.github/workflows/build.yml` runs `xcodegen generate`, then `xcodebuild build` for the
-`CindyApp` scheme (which compiles and embeds `CindyWatch`, plus the `CindyKit` package
+`SenseApp` scheme (which compiles and embeds `SenseWatch`, plus the `SenseKit` package
 dependency, in one pass) against a real iOS Simulator on a macOS GitHub Actions runner —
-and it's green: the whole app compiles clean, and all `CindyKit` unit tests (timer state
+and it's green: the whole app compiles clean, and all `SenseKit` unit tests (timer state
 machine, round/rep scoring, session payload round-tripping, trend/PR analytics) pass via
 `xcodebuild test` run directly against the package.
 
@@ -132,6 +179,6 @@ experience. Before trusting this as a finished app, still:
    iPhone's Tracker/Trend tabs and Timer tab's Watch-mirror mode.
 2. On a physical device, confirm the Health app shows the saved workout with heart
    rate and active energy, since the simulator's HealthKit data is synthetic.
-3. Add real app icon artwork — both `AppIcon.appiconset` catalogs currently have an
-   empty 1024×1024 slot, which doesn't block a Debug build but should be filled in
-   before any TestFlight/App Store submission.
+3. Check the app icon on a physical device. Both catalogs are filled (iOS carries
+   light, dark and tinted variants; the Watch carries a composition pulled inside
+   its circular mask), and `Tools/make-icons.py` regenerates all four from SVG.

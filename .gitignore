@@ -14,8 +14,8 @@ xcuserdata/
 
 # Swift Package Manager
 .swiftpm/
-Packages/CindyKit/.build/
-Packages/CindyKit/.swiftpm/
+Packages/SenseKit/.build/
+Packages/SenseKit/.swiftpm/
 .package.resolved
 Package.resolved
 

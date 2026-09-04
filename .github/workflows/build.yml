@@ -23,11 +23,11 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Build CindyApp (embeds CindyWatch)
+      - name: Build SenseApp (embeds SenseWatch)
         run: |
           xcodebuild build \
-            -project Cindy.xcodeproj \
-            -scheme CindyApp \
+            -project Sense.xcodeproj \
+            -scheme SenseApp \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO
 
@@ -47,14 +47,19 @@ jobs:
           ')
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
-      - name: Run CindyKit unit tests
-        # Plain `swift test` builds for the host (macOS) by default, but CindyKit
-        # imports WatchConnectivity and HealthKit, neither available on macOS.
-        # xcodebuild can build/test a Swift package directly (it recognizes
-        # Package.swift and exposes a scheme named after the package) targeting
-        # a real iOS Simulator, where those frameworks exist.
-        working-directory: Packages/CindyKit
+      - name: Run SenseKit unit tests
+        # Plain `swift test` builds for the host (macOS) by default, but SenseKit
+        # imports WatchConnectivity, which macOS does not have — so the tests need
+        # an iOS Simulator destination.
+        #
+        # Run through the project's SenseKitTests target rather than the package's
+        # own scheme. Testing a bare Package.swift makes xcodebuild infer supported
+        # platforms for an implicit workspace, which fails intermittently with
+        # "Supported platforms for the buildables in the current scheme is empty"
+        # and then offers no simulator destination at all. The project target uses
+        # the same destination resolution as every other target here.
         run: |
           xcodebuild test \
-            -scheme CindyKit \
+            -project Sense.xcodeproj \
+            -scheme SenseKitTests \
             -destination "id=${{ steps.sim.outputs.udid }}"
