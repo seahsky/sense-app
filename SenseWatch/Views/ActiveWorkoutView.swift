@@ -72,6 +72,21 @@ struct ActiveWorkoutView: View {
     /// shaking thumb double-hitting a 56 pt target.
     private static let minimumTapInterval: TimeInterval = 0.25
 
+    /// The Digital Crown is a fallback input, live only when auto-count is off.
+    ///
+    /// It is the most dangerous input path in the app and the least used. A crown
+    /// rotation logs an *asserted* rep, which is never gated by
+    /// `detectedRepAllowance`, so unlike the detector it can close a movement and
+    /// a round. It renders as a solid athlete-asserted pip, and the bulk undo
+    /// cannot reach it. During Cindy the crown spends the workout pressed against
+    /// a bar, a forearm or the floor, so a rotation nobody meant is a score change
+    /// nobody can audit.
+    ///
+    /// Turning auto-count off is the deliberate act that puts the athlete in
+    /// manual mode, and that is where a second manual input earns its keep. While
+    /// the detector is running, the "+1 REP" button is the only manual path.
+    private var isCrownLoggingEnabled: Bool { !isAutoCountEnabled }
+
     var body: some View {
         VStack(spacing: 0) {
             clockRow
@@ -97,9 +112,10 @@ struct ActiveWorkoutView: View {
         .focusable(true)
         .focused($isCrownFocused)
         // Re-asserted on every state change rather than only `.onAppear`: focus is
-        // lost when the confirmation dialog or a system sheet takes over, and a
-        // crown that silently stops logging reps mid-WOD is worse than one that
-        // never worked.
+        // lost when the confirmation dialog or a system sheet takes over, and in
+        // manual mode a crown that silently stops logging reps mid-WOD is worse
+        // than one that never worked. Focus is kept even when the crown is inert
+        // so `handleCrown` keeps tracking its baseline — see `isCrownLoggingEnabled`.
         .onAppear { isCrownFocused = true }
         .onChange(of: showEndConfirmation) { _, isShowing in
             if !isShowing { isCrownFocused = true }
@@ -138,14 +154,14 @@ struct ActiveWorkoutView: View {
                 .disabled(tracker.totalRepsLogged == 0)
                 .simultaneousGesture(
                     LongPressGesture(minimumDuration: 0.6).onEnded { _ in
-                        guard tracker.trailingDetectedRepCount > 0 else { return }
+                        guard tracker.detectedRepCountInCurrentMovement > 0 else { return }
                         showBulkUndoConfirmation = true
                     }
                 )
                 .accessibilityLabel("Undo last rep")
                 .accessibilityHint(
-                    tracker.trailingDetectedRepCount > 0
-                        ? "Long press to remove all \(tracker.trailingDetectedRepCount) auto-counted reps"
+                    tracker.detectedRepCountInCurrentMovement > 0
+                        ? "Long press to remove all \(tracker.detectedRepCountInCurrentMovement) auto-counted reps"
                         : ""
                 )
             }
@@ -174,7 +190,7 @@ struct ActiveWorkoutView: View {
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog(
-            "Remove \(tracker.trailingDetectedRepCount) auto-counted reps?",
+            "Remove \(tracker.detectedRepCountInCurrentMovement) auto-counted reps?",
             isPresented: $showBulkUndoConfirmation,
             titleVisibility: .visible
         ) {
@@ -281,8 +297,7 @@ struct ActiveWorkoutView: View {
     private var pipRow: some View {
         RepPipRow(
             total: currentStepReps,
-            completed: tracker.repsInCurrentMovement,
-            detected: min(tracker.trailingDetectedRepCount, tracker.repsInCurrentMovement),
+            sources: tracker.currentMovementRepSources,
             awaitingBoundaryRep: isAutoCountEnabled && tracker.isAwaitingBoundaryRep
         )
         .padding(.top, 3)
@@ -462,7 +477,7 @@ struct ActiveWorkoutView: View {
     }
 
     private func undoTrailingDetected() {
-        let removed = tracker.undoTrailingDetectedReps()
+        let removed = tracker.undoDetectedRepsInCurrentMovement()
         if removed > 0 { HapticSignal.repUndone.play() }
     }
 
@@ -475,7 +490,17 @@ struct ActiveWorkoutView: View {
         let position = Int(newValue.rounded())
         let rawDelta = position - crownBaseline
         guard rawDelta != 0 else { return }
+        // The baseline advances even when the crown is inert, so re-enabling it
+        // mid-workout cannot release an accumulated delta as a burst of reps.
         crownBaseline = position
+
+        guard isCrownLoggingEnabled else { return }
+
+        // The clock being stopped is exactly when a stray rotation is most likely
+        // and least wanted. `pause()` already stops the motion sensor "so a walk to
+        // the water fountain cannot log reps", and the crown was the one input path
+        // that ignored it — while being the only one that can close a round.
+        guard timerEngine.phase == .running else { return }
 
         let delta = max(-Self.maxRepsPerCrownGesture, min(Self.maxRepsPerCrownGesture, rawDelta))
         if delta > 0 {
@@ -624,7 +649,12 @@ struct ActiveWorkoutView: View {
 
 private func previewTracker(reps: Int, detected: Int) -> RoundRepTracker {
     let tracker = RoundRepTracker(variant: .rx)
-    tracker.logReps(max(0, reps - detected), source: .manual)
+    // One asserted rep first, always: `detectedRepAllowance` refuses to open a
+    // movement block on the detector's word alone, so a preview that logged only
+    // detected reps would render an empty row and quietly misrepresent the screen.
+    tracker.logRep(source: .manual)
+    let remaining = max(0, reps - detected - 1)
+    if remaining > 0 { tracker.logReps(remaining, source: .manual) }
     tracker.logDetectedReps(detected)
     return tracker
 }

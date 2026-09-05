@@ -266,6 +266,14 @@ private actor RepDetectionProcessor {
             decimator = Decimator(
                 factor: Decimator.factor(sourceRateHz: sourceRateHz, targetRateHz: analysisRateHz)
             )
+            // Drop the buffer too, not just the decimator. A rate change means a
+            // tier failover mid-set, and samples decimated at the old factor sit
+            // at a different effective rate from the ones that follow. Every
+            // time-based decision downstream — the filter corners, `minPeriod` in
+            // samples, the autocorrelation lag search — assumes one rate for the
+            // whole buffer, so analysing the splice is undefined rather than
+            // merely inaccurate. Losing the warm-up window is the cheaper error.
+            engine.reset()
         }
         return engine.ingest(decimator.decimate(samples))
     }

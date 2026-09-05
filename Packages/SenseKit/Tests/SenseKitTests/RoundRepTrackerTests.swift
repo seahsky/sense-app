@@ -228,24 +228,66 @@ extension RoundRepTrackerTests {
 
 // MARK: - Boundary-gated automatic detection
 //
-// The contract: the detector may do the bulk of a movement but never the rep that
-// closes it, so the sequence can never advance without the athlete.
+// The contract has two halves, and they are symmetric: the detector may do the
+// bulk of a movement, but it may neither OPEN one nor CLOSE one. The rep that
+// starts a block and the rep that ends it both come from the athlete, so the
+// sequence can never advance, and can never begin, without them.
 
 final class BoundaryGatedDetectionTests: XCTestCase {
+    func testDetectorCannotOpenAMovementBlock() {
+        let tracker = RoundRepTracker(variant: .rx)
+
+        XCTAssertFalse(tracker.hasAssertedRepInCurrentMovement)
+        XCTAssertEqual(tracker.detectedRepAllowance, 0, "the detector may not start a block")
+        XCTAssertEqual(tracker.logDetectedReps(99), 0)
+        XCTAssertEqual(tracker.totalRepsLogged, 0)
+    }
+
+    func testAnAssertedRepOpensTheBlock() {
+        let tracker = RoundRepTracker(variant: .rx)
+        tracker.logRep(source: .manual)
+
+        XCTAssertTrue(tracker.hasAssertedRepInCurrentMovement)
+        XCTAssertEqual(tracker.repsRemainingInCurrentMovement, 4)
+        XCTAssertEqual(tracker.detectedRepAllowance, 3, "4 owed means at most 3 detected")
+    }
+
+    func testTheCrownOpensABlockJustAsATapDoes() {
+        // Both are asserted reps. Only `.detected` is the app's own opinion.
+        let tracker = RoundRepTracker(variant: .rx)
+        tracker.logRep(source: .crown)
+        XCTAssertTrue(tracker.hasAssertedRepInCurrentMovement)
+        XCTAssertEqual(tracker.detectedRepAllowance, 3)
+    }
+
+    func testTheGateRearmsAtEveryBoundary() {
+        let tracker = RoundRepTracker(variant: .rx)
+        tracker.logReps(5, source: .manual)
+
+        XCTAssertEqual(tracker.currentMovement, .pushUp)
+        XCTAssertEqual(tracker.repsRemainingInCurrentMovement, 10)
+        XCTAssertFalse(tracker.hasAssertedRepInCurrentMovement, "a new block starts closed")
+        XCTAssertEqual(tracker.detectedRepAllowance, 0, "even with 10 reps owed")
+
+        tracker.logRep(source: .manual)
+        XCTAssertEqual(tracker.detectedRepAllowance, 8)
+    }
+
     func testAllowanceStopsOneShortOfTheBoundary() {
         let tracker = RoundRepTracker(variant: .rx)
-        XCTAssertEqual(tracker.repsRemainingInCurrentMovement, 5)
-        XCTAssertEqual(tracker.detectedRepAllowance, 4, "5 pull-ups means at most 4 detected")
+        tracker.logRep(source: .manual)
+        XCTAssertEqual(tracker.detectedRepAllowance, 3)
 
-        tracker.logReps(4, source: .detected)
+        tracker.logReps(3, source: .detected)
         XCTAssertEqual(tracker.detectedRepAllowance, 0)
         XCTAssertTrue(tracker.isAwaitingBoundaryRep)
     }
 
     func testDetectorCannotCloseAMovement() {
         let tracker = RoundRepTracker(variant: .rx)
+        tracker.logRep(source: .manual)
 
-        XCTAssertEqual(tracker.logDetectedReps(99), 4, "clamped to the allowance")
+        XCTAssertEqual(tracker.logDetectedReps(99), 3, "clamped to the allowance")
         XCTAssertEqual(tracker.currentMovement, .pullUp, "still on pull-ups")
         XCTAssertEqual(tracker.repsInCurrentMovement, 4)
 
@@ -257,13 +299,14 @@ final class BoundaryGatedDetectionTests: XCTestCase {
 
     func testAthleteTapAdvancesTheMovement() {
         let tracker = RoundRepTracker(variant: .rx)
+        tracker.logRep(source: .manual)
         tracker.logDetectedReps(10)
         XCTAssertEqual(tracker.currentMovement, .pullUp)
 
         tracker.logRep(source: .manual)
 
         XCTAssertEqual(tracker.currentMovement, .pushUp)
-        XCTAssertEqual(tracker.detectedRepAllowance, 9, "10 push-ups means at most 9 detected")
+        XCTAssertEqual(tracker.detectedRepAllowance, 0, "the push-up block opens closed")
     }
 
     func testDetectorCannotCloseARoundEither() {
@@ -278,18 +321,24 @@ final class BoundaryGatedDetectionTests: XCTestCase {
         XCTAssertEqual(tracker.completedRounds, 1)
     }
 
-    func testAWholeRoundCostsExactlyThreeAthleteTaps() {
-        // The point of the feature, expressed as a test: 30 taps become 3.
+    func testAWholeRoundCostsExactlySixAthleteTaps() {
+        // The point of the feature, expressed as a test: 30 reps become 6 taps.
+        // Two per movement, one to open the block and one to close it. It was
+        // three before the opening tap was required, and the extra three are what
+        // buy immunity to every phantom that fires while the athlete is still
+        // walking from the bar to the floor.
         let tracker = RoundRepTracker(variant: .rx)
         var taps = 0
 
         for _ in 0..<3 {
+            tracker.logRep(source: .manual)
+            taps += 1
             tracker.logDetectedReps(99)
             tracker.logRep(source: .manual)
             taps += 1
         }
 
-        XCTAssertEqual(taps, 3)
+        XCTAssertEqual(taps, 6)
         XCTAssertEqual(tracker.completedRounds, 1)
         XCTAssertEqual(tracker.scoreString, "1+0")
     }
@@ -298,7 +347,8 @@ final class BoundaryGatedDetectionTests: XCTestCase {
         // The detector misses two of five. The athlete does not need to know that
         // — they just keep tapping until the movement changes.
         let tracker = RoundRepTracker(variant: .rx)
-        tracker.logDetectedReps(3) // caught 3 of the 5 the athlete performed
+        tracker.logRep(source: .manual)
+        tracker.logDetectedReps(2) // caught 2 of the 4 that followed the opening tap
 
         tracker.logRep(source: .manual)
         XCTAssertEqual(tracker.currentMovement, .pullUp, "still owed one")
@@ -318,11 +368,68 @@ final class BoundaryGatedDetectionTests: XCTestCase {
         XCTAssertEqual(tracker.events.map(\.source), [.manual])
     }
 
+    func testBulkUndoReachesPastAnAssertedRepWithinTheMovement() {
+        // The failure this fixes: the athlete taps once to correct a runaway
+        // counter, which breaks the trailing run, and `undoTrailingDetectedReps`
+        // can then never reach the phantoms in front of that tap.
+        let tracker = RoundRepTracker(variant: .rx)
+        tracker.logRep(source: .manual)
+        tracker.logDetectedReps(2)
+        tracker.logRep(source: .manual) // the corrective tap
+        XCTAssertEqual(tracker.trailingDetectedRepCount, 0, "the run is broken")
+        XCTAssertEqual(tracker.undoTrailingDetectedReps(), 0, "which is why the old undo is stuck")
+
+        XCTAssertEqual(tracker.detectedRepCountInCurrentMovement, 2)
+        XCTAssertEqual(tracker.undoDetectedRepsInCurrentMovement(), 2)
+        XCTAssertEqual(tracker.events.map(\.source), [.manual, .manual])
+    }
+
+    func testBulkUndoNeverReachesAMovementTheAthleteFinished() {
+        let tracker = RoundRepTracker(variant: .rx)
+        tracker.logRep(source: .manual)
+        tracker.logDetectedReps(3)
+        tracker.logRep(source: .manual) // closes the pull-ups
+        XCTAssertEqual(tracker.currentMovement, .pushUp)
+
+        tracker.logRep(source: .manual)
+        tracker.logDetectedReps(4)
+
+        XCTAssertEqual(tracker.undoDetectedRepsInCurrentMovement(), 4, "push-ups only")
+        XCTAssertEqual(tracker.completedRounds, 0)
+        XCTAssertEqual(
+            tracker.events.map(\.source),
+            [.manual, .detected, .detected, .detected, .manual, .manual],
+            "the finished pull-up block is untouched"
+        )
+    }
+
+    func testCurrentMovementRepSourcesCarriesTheTrueOrder() {
+        // Two counts cannot express this: the detected reps are not trailing, so
+        // anything rendering "n asserted then m detected" would draw all four as
+        // the athlete's own.
+        let tracker = RoundRepTracker(variant: .rx)
+        tracker.logRep(source: .manual)
+        tracker.logDetectedReps(2)
+        tracker.logRep(source: .manual)
+
+        XCTAssertEqual(tracker.currentMovementRepSources, [.manual, .detected, .detected, .manual])
+        XCTAssertEqual(tracker.detectedRepCountInCurrentMovement, 2)
+    }
+
+    func testCurrentMovementRepSourcesIsEmptyAtABoundary() {
+        let tracker = RoundRepTracker(variant: .rx)
+        tracker.logReps(5, source: .manual)
+        XCTAssertEqual(tracker.currentMovementRepSources, [])
+        XCTAssertEqual(tracker.detectedRepCountInCurrentMovement, 0)
+        XCTAssertEqual(tracker.undoDetectedRepsInCurrentMovement(), 0)
+    }
+
     func testAllowanceIsZeroWhenNothingIsOwed() {
         let tracker = RoundRepTracker(variant: .rx)
         tracker.logReps(5, source: .manual)
-        XCTAssertEqual(tracker.repsRemainingInCurrentMovement, 10)
-        XCTAssertEqual(tracker.detectedRepAllowance, 9)
+        tracker.logRep(source: .manual) // opens the push-up block
+        XCTAssertEqual(tracker.repsRemainingInCurrentMovement, 9)
+        XCTAssertEqual(tracker.detectedRepAllowance, 8)
         XCTAssertFalse(tracker.isAwaitingBoundaryRep)
     }
 
@@ -330,16 +437,20 @@ final class BoundaryGatedDetectionTests: XCTestCase {
         let tracker = RoundRepTracker(variant: .rx)
         XCTAssertEqual(tracker.detectedRepFraction, 0, accuracy: 1e-9, "no reps means no claim")
 
-        tracker.logDetectedReps(3)
         tracker.logRep(source: .manual)
-        XCTAssertEqual(tracker.detectedRepFraction, 0.75, accuracy: 1e-9)
+        tracker.logDetectedReps(2)
+        tracker.logRep(source: .manual)
+        XCTAssertEqual(tracker.detectedRepFraction, 0.5, accuracy: 1e-9)
     }
 
     func testLogDetectedRepsUsesDetectedProvenance() {
         let tracker = RoundRepTracker(variant: .rx)
         let when = Date(timeIntervalSince1970: 1_000_000)
-        tracker.logDetectedReps(2, at: when)
-        XCTAssertTrue(tracker.events.allSatisfy { $0.source == .detected && $0.date == when })
+        tracker.logRep(source: .manual)
+        XCTAssertEqual(tracker.logDetectedReps(2, at: when), 2)
+
+        XCTAssertEqual(tracker.events.map(\.source), [.manual, .detected, .detected])
+        XCTAssertTrue(tracker.events.dropFirst().allSatisfy { $0.date == when })
         XCTAssertEqual(tracker.lastRepAt, when, "detected reps count as activity for rest detection")
     }
 }

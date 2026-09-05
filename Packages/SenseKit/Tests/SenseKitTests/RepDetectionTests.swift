@@ -500,3 +500,79 @@ final class RestWithinSegmentTests: XCTestCase {
         XCTAssertGreaterThan(afterRestart, 0, "detection must survive a stream restart")
     }
 }
+
+// MARK: - The segment-start blackout
+//
+// A segment opens on the athlete's boundary tap, while they are still hanging off
+// the bar or walking to the floor, and `RoundRepTracker.detectedRepAllowance` is
+// at its widest at exactly that instant. The engine seeds `emittedThrough` to a
+// warm-up horizon so nothing from the opening window can be emitted as a rep of
+// the movement that just started.
+
+final class SegmentStartBlackoutTests: XCTestCase {
+    private let sampleRateHz = 50.0
+
+    /// Rep-like motion on one axis, `seconds` long, starting at stream time `start`.
+    private func motion(from start: Double, seconds: Double, periodSeconds: Double = 1.0) -> [MotionSample] {
+        (0..<Int(seconds * sampleRateHz)).map { offset in
+            let local = Double(offset) / sampleRateHz
+            return MotionSample(
+                timestamp: start + local,
+                x: 0.5 * sin(2 * Double.pi * local / periodSeconds),
+                y: 0,
+                z: 1.0
+            )
+        }
+    }
+
+    func testSegmentStartDoesNotEmitFromItsOpeningWindow() {
+        var engine = RepDetectionEngine(movement: .pullUp)
+        // 2.0 s carries two peaks and clears the two-period span guard, so without
+        // the blackout the opening window emits.
+        XCTAssertEqual(engine.ingest(motion(from: 0, seconds: 2.0)), 0)
+    }
+
+    func testBeginSegmentRearmsTheBlackout() {
+        var engine = RepDetectionEngine(movement: .pullUp)
+        _ = engine.ingest(motion(from: 0, seconds: 20))
+
+        engine.beginSegment(movement: .pushUp)
+        // Sized to the INCOMING movement's warm-up, not the outgoing one's. A
+        // push-up's `minPeriod` is 0.6 s against a pull-up's 0.8 s, so its
+        // blackout is 1.2 s and a 2.0 s batch legitimately reaches past it. At
+        // 1.5 s the span guard is still cleared, so this fails without the seed
+        // and passes with it.
+        XCTAssertEqual(
+            engine.ingest(motion(from: 20, seconds: 1.5)),
+            0,
+            "the batch straddling a boundary tap must not be credited to the new movement"
+        )
+    }
+
+    func testBlackoutRearmsAfterAStreamRestart() {
+        // The failure this pins: keying the seed on an empty buffer instead of on
+        // the watermark. A backwards clock jump resets the watermark and then
+        // appends, so the buffer is no longer empty when the seed is evaluated,
+        // and a buffer test would silently fail to re-arm — precisely when the
+        // band-pass priming transient is largest.
+        var engine = RepDetectionEngine(movement: .pullUp)
+        _ = engine.ingest(motion(from: 10_000, seconds: 20))
+
+        XCTAssertEqual(
+            engine.ingest(motion(from: 5, seconds: 2.0)),
+            0,
+            "a tier failover must not dump the rebuilt buffer as reps"
+        )
+    }
+
+    func testTheBlackoutCostsAboutOneRepAndNoMore() {
+        var engine = RepDetectionEngine(movement: .pullUp)
+        var emitted = 0
+        let samples = motion(from: 0, seconds: 24, periodSeconds: 2.0) // 12 reps
+        for start in stride(from: 0, to: samples.count, by: 25) {
+            emitted += engine.ingest(Array(samples[start..<min(start + 25, samples.count)]))
+        }
+        XCTAssertGreaterThanOrEqual(emitted, 8, "the blackout must not disable detection, got \(emitted)")
+        XCTAssertLessThanOrEqual(emitted, 11, "the opening window must be spent, got \(emitted)")
+    }
+}
