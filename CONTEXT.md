@@ -52,8 +52,34 @@ The canonical way a Cindy attempt is recorded.
 
 ## Variant
 
-A scaled version of Cindy: Rx, weighted vest, or a scaled movement substitution.
-Changes the movement sequence or the load, never the 20-minute cap.
+A scaled version of Cindy: Rx, Scaled, Baby Cindy, Weighted Vest, or Hard Cindy.
+What a variant changes is the time cap or the equipment, never the rep scheme.
+`CindyVariant.movementSequence` is identical for all five, and the equipment figures that do vary live in `VariantEquipment`.
+
+The cap is the part that is easy to get wrong.
+Four variants run to 20:00; Baby Cindy runs to 12:00, and `CindyVariant.babyCindy.timeCapSeconds` returns 720.
+An earlier version of this entry said a variant never changes the 20-minute cap, which the code has never agreed with.
+Since [[complication]] starts a session straight from the watch face, that stopped being a documentation nit and became the live question: which cap did my tap just start.
+
+## Complication
+
+The SENSE tile on a watch face.
+It starts a Cindy; it does not display one.
+
+Showing no [[score]] is a storage boundary, not an omission.
+The complication runs in a widget extension, which is a separate process from the watch app, and this repo has no App Group, so the extension cannot read the store the score lives in.
+HealthKit is not a way around that either: the extension has no HealthKit entitlement, and the saved workout carries per-movement metadata rather than the rounds-plus-reps score.
+
+Which [[variant]] a complication starts is chosen when it is added to the face, from the rows `recommendations()` supplies.
+That choice is permanent for that tile, because watchOS offers no interface for editing a complication's configuration afterwards.
+See [docs/adr/0003](docs/adr/0003-the-complication-is-a-labelled-launcher.md).
+
+## Deep link
+
+`sense://start?variant=<rawValue>`, the only cross-process instruction in the product.
+
+The complication builds it and the watch app parses it, both through `SenseKit/Routing/SenseDeepLink.swift`, so the two processes cannot drift apart on the spelling.
+An unrecognised variant is rejected rather than defaulted, unlike `SessionPayload`, because a wrong guess here is a wrong clock rather than a mislabelled row.
 
 ## Sets vs rounds
 

@@ -12,6 +12,21 @@ import SwiftUI
 /// **2.68:1**, which fails even the 3:1 large-text threshold, so it survives here
 /// only as a *fill* (``accent``, behind cream) and never as ink. ``accentInk`` is
 /// the lifted blue that small text uses instead.
+///
+/// **Every ratio below stops applying the moment a view leaves the app's own
+/// screens.** A watch complication has no ``ground``: it draws over whatever face
+/// the athlete chose, through a translucent `AccessoryWidgetBackground` plate.
+/// Recomputed there against black, against a lighter plate, and over a light photo
+/// face, ``motif`` falls from 3.00:1 to 2.48:1, 1.90:1 and **1.30:1**, and
+/// ``accent`` to 1.16:1. ``ink`` holds at 14.4 / 11.0 / 4.44 and ``accentInk`` at
+/// 5.04 / 3.86 / 1.56, which is why the complication's mark draws its web in
+/// ``ink`` and spends its one hue on the disc in ``accentInk``.
+///
+/// Colour may not survive the trip at all. Most watch faces render complications
+/// in `.accented`, where the system treats the views as template images and paints
+/// them from the alpha channel, discarding the hue entirely. So a complication
+/// design that carries meaning in colour fails by construction, and the red is the
+/// first thing the next person will reach for.
 public enum SenseColor {
     // MARK: Grounds
 

@@ -12,6 +12,24 @@ import WatchKit
 /// see the screen. The distinction that matters most is `repLogged` versus
 /// `repDetected`: "I told the watch" must not feel like "the watch decided".
 public enum HapticSignal {
+    /// The clock has started. Fires once, at t=0, and only when the attempt began
+    /// on a complication tap rather than on the Start screen.
+    ///
+    /// It exists because a complication tap skips the Start screen entirely, so a
+    /// cold launch from a watch face is seconds of black screen with nothing to
+    /// tell the athlete the tap registered at all.
+    ///
+    /// **It shares `.start` with `movementChanged`, which breaks this type's own
+    /// rule that every case is distinguishable by feel alone.** The exception is
+    /// deliberate and it is worth stating rather than leaving to be discovered.
+    /// Only two general-purpose `WKHapticType` cases are still unused — `.retry`
+    /// and `.stop` — and neither means "started"; `.stop` would say the opposite of
+    /// what happened. The collision is harmless because the two cases cannot occur
+    /// in the same part of an attempt's timeline: `sessionStarted` fires at t=0,
+    /// before any movement block exists, and `movementChanged` cannot fire until
+    /// the athlete has closed a movement. There is no instant at which the athlete
+    /// has to tell them apart.
+    case sessionStarted
     /// The athlete asserted a rep, by tap or crown.
     case repLogged
     /// A rep was removed. Deliberately the mirror of `repLogged` rather than the
@@ -33,6 +51,8 @@ public enum HapticSignal {
 
     public func play() {
         switch self {
+        case .sessionStarted:
+            WKInterfaceDevice.current().play(.start)
         case .repLogged:
             WKInterfaceDevice.current().play(.click)
         case .repUndone:

@@ -27,6 +27,21 @@ public final class RoundRepTracker {
     /// Every repetition logged this attempt, oldest first.
     public private(set) var events: [RepEvent] = []
 
+    /// Whether the athlete has ever asserted a repetition during this attempt.
+    ///
+    /// Set by `logRep`/`logReps` for any user-confirmed source and never cleared,
+    /// which is the whole point and the one place this type departs from deriving
+    /// everything from `events`. `undoLastRep()`, `undoDetectedRepsInCurrentMovement()`
+    /// and `reset()` can all take `totalRepsLogged` back to zero, but none of them
+    /// takes back the fact that somebody was here — and "was anybody here?" is the
+    /// only question ``UnattendedStart`` asks. An athlete who logs three reps, rolls
+    /// the crown back to correct a miscount and then presses End has demonstrably
+    /// noticed their watch, and the count alone can no longer say so.
+    ///
+    /// It is not a second source of truth for the score: nothing derives from it and
+    /// it derives from nothing, so there is nothing for undo to keep in step.
+    public private(set) var hasAssertedARep = false
+
     public init(variant: CindyVariant) {
         self.variant = variant
     }
@@ -38,6 +53,7 @@ public final class RoundRepTracker {
     /// input produced it.
     public func logRep(at date: Date = .now, source: RepSource = .manual) {
         events.append(RepEvent(date: date, source: source))
+        if source.isUserConfirmed { hasAssertedARep = true }
         recompute()
     }
 
@@ -49,6 +65,7 @@ public final class RoundRepTracker {
     public func logReps(_ count: Int, at date: Date = .now, source: RepSource = .manual) {
         guard count > 0 else { return }
         events.append(contentsOf: (0..<count).map { _ in RepEvent(date: date, source: source) })
+        if source.isUserConfirmed { hasAssertedARep = true }
         recompute()
     }
 
@@ -172,6 +189,15 @@ public final class RoundRepTracker {
     /// The whole of rest detection rests on this one value.
     public var lastRepAt: Date? { events.last?.date }
 
+    /// Every repetition logged this attempt, whoever produced it.
+    ///
+    /// This is the score's own count, and it is NOT what ``UnattendedStart`` asks —
+    /// that reads ``hasAssertedARep`` instead. The two agree on the way up, because
+    /// ``detectedRepAllowance`` returns 0 until the athlete asserts a rep and the
+    /// detector therefore cannot move this count off zero on its own. They part on
+    /// the way down: `undoLastRep()` and `reset()` can bring this back to zero, and
+    /// an attempt the athlete corrected their way out of is not an attempt nobody
+    /// noticed.
     public var totalRepsLogged: Int { events.count }
 
     public var currentMovement: Movement {

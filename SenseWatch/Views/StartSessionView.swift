@@ -143,15 +143,11 @@ struct StartSessionView: View {
     }
 
     private var titleChip: some View {
-        Text("Cindy · \(timeCapText)")
+        Text("Cindy · \(selectedVariant.timeCapText)")
             .font(SenseFont.clock(size: 15))
             .foregroundStyle(SenseColor.ink)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
-    }
-
-    private var timeCapText: String {
-        "\(Int(selectedVariant.timeCapSeconds) / 60):00"
     }
 
     /// Rep counts in blue, movement names in the dimmer ink, matching the design.
