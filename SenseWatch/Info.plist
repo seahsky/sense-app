@@ -71,6 +71,35 @@
 	<key>NSMotionUsageDescription</key>
 	<string>SENSE reads wrist motion during a workout to count your reps automatically. You can always log and correct reps by hand.</string>
 
+	<!-- The app half of the complication's one-tap contract: the extension builds
+	     sense://start?variant=<rawValue> via SenseDeepLink and ContentView.onOpenURL
+	     parses it. Whether widgetURL strictly requires the scheme to be declared
+	     here could not be settled locally, and not for want of trying — xcrun simctl
+	     openurl is unsupported on the watchOS simulator and fails with
+	     LSApplicationWorkspaceErrorDomain 115 even for a system scheme like
+	     music://, so the unregistered case cannot be observed anywhere but on a
+	     wrist. One block ends the argument. GENERATE_INFOPLIST_FILE is off for this
+	     target (see entitlements-and-plist-notes.md), so nothing adds it for us.
+	     The scheme string is duplicated in SenseDeepLink.scheme.
+	     SenseDeepLinkTests reads THIS file off the source tree via #filePath and
+	     asserts the schemes declared below contain that constant, so renaming
+	     either half fails the suite rather than the wrist. That test is the only
+	     thing watching this key: the watch app is not in the SenseKit test
+	     bundle's dependency graph, so nothing else here is compiled or checked. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.senseapp.ios.watchkitapp.deeplink</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>sense</string>
+			</array>
+		</dict>
+	</array>
+
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

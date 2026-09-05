@@ -73,6 +73,19 @@ this happens on the iPhone-only flows (Tracker tab, manual backfill) — those c
 duration from the app's own timer and have no heart rate or energy data unless you
 type it in by hand.
 
+**One tap, from the watch face.** A SENSE complication starts a session with the
+variant that complication was configured with when it was added to the face — Rx and
+Baby Cindy are two different tiles, not one tile in two moods, because watchOS offers
+no way to edit a complication's configuration afterwards.
+The tap is meant to launch the app and start the clock, with everything after that
+the normal flow — but whether a complication tap reaches the app at all on watchOS is
+unverified off-device, so treat check 5 below as the gate.
+An attempt started this way that you never touch is discarded rather than saved — when
+you end it, or by itself after two minutes if you never noticed the tap.
+No workout is written; the heart-rate and energy samples HealthKit had already
+collected stay in Health, because `discardWorkout()` does not delete them.
+See [docs/adr/0003](docs/adr/0003-the-complication-is-a-labelled-launcher.md).
+
 ## Variants
 
 | Variant | Time cap | Movements |
@@ -99,13 +112,15 @@ sense-app/
 │   │   ├── Models/                 CindySession (SwiftData @Model), CindyVariant, Movement
 │   │   ├── Tracking/                AmrapTimerEngine (pause-aware countdown), RoundRepTracker
 │   │   │                            (score + rep events + the boundary gate), RepEvent,
-│   │   │                            RestDetection (sensor-free, pure)
+│   │   │                            RestDetection (sensor-free, pure), UnattendedStart
+│   │   │                            (the two rules for a mis-tapped complication)
 │   │   ├── Sensing/                 The rep counter, all pure and Foundation-only:
 │   │   │                            Bandpass (Butterworth biquads), PrincipalAxis (PCA),
 │   │   │                            RepPeakCounter (RecoFit's three passes),
 │   │   │                            RepDetectionEngine (rolling buffer, stateless recount),
 │   │   │                            MotionSample + Decimator
 │   │   ├── Connectivity/            SessionPayload (Codable DTO), WatchConnectivityBridge (WCSession)
+│   │   ├── Routing/                 SenseDeepLink (the sense:// contract) + StartTrigger
 │   │   ├── Haptics/                 HapticSignal (watchOS-only)
 │   │   └── Analytics/                TrendAnalytics (personal records, pace, projections)
 │   └── Tests/SenseKitTests/         Unit tests, incl. synthetic-signal tests for the counter
@@ -118,6 +133,13 @@ sense-app/
 │       ├── Tracker/                  Full iPhone-only session flow + manual backfill/edit
 │       ├── Trend/                    History, personal records, Swift Charts trend lines
 │       └── Shared/                   Variant picker, formatting helpers
+├── SenseComplication/              watchOS complication, embedded inside the Watch app
+│   ├── Info.plist                    NSExtension point identifier, and nothing else
+│   ├── SenseComplicationBundle.swift @main; registers the display face in this process
+│   ├── StartCindyIntent.swift        Configuration intent — a String variant, never an AppEnum
+│   ├── StartCindyComplication.swift  The Widget, its entry, a one-entry never-refresh provider
+│   ├── StartCindyEntryView.swift     Per-family layout, the one widgetURL, the spoken labels
+│   └── CindyMark.swift               The app mark re-weighted for a 42pt content box
 └── SenseWatch/                     watchOS app target (single-target, no WatchKit Extension)
     ├── SenseWatchApp.swift          App entry point, local ModelContainer
     ├── Info.plist / .entitlements    HealthKit usage strings + capability
@@ -154,7 +176,9 @@ hand them over.
 6. Choose a run destination: a paired iPhone + Apple Watch simulator (e.g. "iPhone 16
    Pro + Apple Watch Series 10" in the scheme's device list), or a physical
    iPhone paired with a physical Apple Watch. Building `SenseApp` automatically embeds
-   and installs `SenseWatch` as its companion Watch app.
+   and installs `SenseWatch` as its companion Watch app, and `SenseWatch` in turn
+   embeds `SenseComplication` in its `PlugIns/` folder — so the complication ships
+   with the Watch app and needs no scheme or run destination of its own.
 7. Build and run (⌘R).
 8. On first launch of a session on the Watch, grant the HealthKit permissions when
    prompted:
@@ -192,3 +216,39 @@ experience. Before trusting this as a finished app, still:
 3. Check the app icon on a physical device. Both catalogs are filled (iOS carries
    light, dark and tinted variants; the Watch carries a composition pulled inside
    its circular mask), and `Tools/make-icons.py` regenerates all four from SVG.
+4. Add the SENSE complication to a real watch face and confirm the picker lists all
+   five variants — Rx, Scaled, Baby Cindy, Weighted Vest, Hard Cindy — each drawn as
+   its own row.
+   Whether a row renders its own configuration is inferred from Apple's wording
+   ("preconfigured complications") rather than verified; if the five rows come out
+   identical, the install story above needs rewriting.
+5. With the app **not running**, tap that complication and confirm the clock starts,
+   and that a Baby Cindy tile counts down from 12:00 rather than 20:00.
+   Nothing else can stand in for this one: `xcrun simctl openurl` is unsupported on
+   the watchOS simulator and fails with `LSApplicationWorkspaceErrorDomain` 115 even
+   for `music://`, so a simulator failure proves nothing either way.
+   Whether a complication tap reaches `.onOpenURL` on watchOS is genuinely unsettled,
+   and the fallback if it does not is written down in
+   [docs/adr/0003](docs/adr/0003-the-complication-is-a-labelled-launcher.md).
+6. Tap the complication, log nothing, and confirm no Cross Training workout appears
+   in Health and no row appears in Watch History — both when you end the attempt by
+   hand and when you put the watch down and let the app end it by itself at about two
+   minutes.
+   A tile on a wrist gets pressed by doorframes, and this is what stops that becoming
+   a phantom 20:00 in your Health data.
+7. Put all four families on at least two faces — one multicolour Infograph and one
+   with an accent colour, plus X-Large if you have it — so the mark is seen in both
+   `.fullColor` and `.accented`.
+   Accented rendering discards colour and paints from the alpha channel, and which of
+   the two groups gets the accent flips between faces, so both assignments have to
+   read as a ring around a dot.
+   `CindyMark` draws its ring into a `Canvas`, and whether a rasterised canvas
+   contributes the alpha that pass expects is unverified — if the ring fills into a
+   disc or vanishes, redraw it as five `Circle().trim(from:to:).stroke()` shapes at
+   the same geometry.
+8. On the same face, confirm "CINDY" in the rectangular family is really Zilla Slab
+   and not the system fallback.
+   `SenseFont.register()` is process-scoped and a failed registration in the
+   extension produces no error and no crash, so compare against a build with a
+   deliberately wrong PostScript name; if the two look identical, registration is not
+   working.

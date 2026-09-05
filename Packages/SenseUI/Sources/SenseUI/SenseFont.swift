@@ -21,6 +21,27 @@ import CoreText
 /// unchanged if the face has no tabular figures, with no error and no warning, so a
 /// future font swap to a face without `tnum` would reintroduce the jitter invisibly.
 /// ``clock(size:)`` exists to make that one decision in one place.
+///
+/// **Why every process has to register the face for itself.** ``register()`` scopes
+/// the registration to the running process, so the call `SenseWatchApp` makes at
+/// launch does nothing for the widget extension, which is a separate process with
+/// its own copy of this package. Skipping it there neither crashes nor warns:
+/// `Font.custom` falls back to the system face silently and the screenshot still
+/// looks plausible. That is the same class of invisible failure as the
+/// `.monospacedDigit()` trap above, so the complication registers twice, in its
+/// `WidgetBundle.init()` and again in the timeline provider's `placeholder(in:)`,
+/// and ``register()`` is idempotent so the second call costs nothing.
+///
+/// **Why passing the size assertion is not licence to set a number in this face.**
+/// Zilla Slab SemiBold ships old-style figures: `0`, `1` and `2` sit at x-height,
+/// around 0.52 em, `6` and `8` ascend to 0.66, and `3`, `4`, `5`, `7` and `9`
+/// descend to -0.13. `tnum` fixes the advance width, not the outline, so
+/// ``clock(size:)`` cures the horizontal jitter and leaves the bouncing baseline
+/// exactly where it was. At the clock and score sizes, on the app's own dark
+/// ground, that reads as the face's character. Small, or on a surface the app does
+/// not own, it reads as broken text, which is why the watch complication sets
+/// every number in the system font and spends the display face on a single word.
+/// ``display(size:)``'s assertion checks the size and cannot see any of this.
 public enum SenseFont {
     /// PostScript name, which is what `Font.custom` resolves against. It is not the
     /// file name, and the two are unrelated in general.

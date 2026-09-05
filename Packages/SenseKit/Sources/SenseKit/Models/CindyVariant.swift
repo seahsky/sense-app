@@ -42,6 +42,23 @@ public enum CindyVariant: String, Codable, CaseIterable, Sendable, Identifiable 
         case .rx, .scaled, .weightedVest, .hardCindy: return 1200
         }
     }
+
+    /// The cap as the product writes it: "20:00", "12:00".
+    ///
+    /// It lives here, beside the number it formats, because three processes now
+    /// render it — the watch app's title chip, the complication's rectangular
+    /// sub-line and its inline ladder — and they had begun to drift. The Start
+    /// screen built the string as `\(seconds / 60):00`, which is only right while
+    /// every cap happens to be a round minute; the complication carried its own
+    /// `%d:%02d`. One derivation, no leading zero on the minutes, so a cap that
+    /// stops being round changes one line rather than three.
+    ///
+    /// This is not `Formatting.clock`, which is app-local and pads the minutes for
+    /// an elapsed duration. A cap is a label, not a running clock.
+    public var timeCapText: String {
+        let total = Int(timeCapSeconds)
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
 }
 
 /// User-adjustable equipment config for variants where load/height figures are not

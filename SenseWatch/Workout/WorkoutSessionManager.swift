@@ -12,11 +12,16 @@ import SenseKit
 ///   `builder.endCollection(withEnd:completion:)` -> `builder.finishWorkout(completion:)`
 ///   -> `session.end()` -> `.ended` delegate callback to stop and finalize.
 ///
+/// The chain forks once, at `endCollection`: `finish(discardingWorkout: true)`
+/// swaps `finishWorkout` for `discardWorkout`, so an attempt the athlete never
+/// meant to start writes no `HKWorkout` at all. See `finish(discardingWorkout:completion:)`.
+///
 /// Heart rate has no HealthKit-side "average" query in this pipeline: every sample
 /// observed via `HKLiveWorkoutBuilderDelegate.workoutBuilder(_:didCollectDataOf:)`
 /// is appended to `heartRateSamples`, and the mean of that array — computed
-/// app-side — is what `finish(completion:)` hands back as the average heart rate.
-/// Active energy is read once at the end as `HKStatistics.sumQuantity()`.
+/// app-side — is what `finish(discardingWorkout:completion:)` hands back as the
+/// average heart rate. Active energy is read once at the end as
+/// `HKStatistics.sumQuantity()`.
 @Observable
 final class WorkoutSessionManager: NSObject {
     enum WorkoutError: Error {
@@ -27,6 +32,15 @@ final class WorkoutSessionManager: NSObject {
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
     private var finishCompletion: ((Double?, Double?) -> Void)?
+
+    /// Whether the attempt now being torn down should be thrown away instead of
+    /// written to Health. Set by `finish(discardingWorkout:completion:)` and read
+    /// once, in the `.stopped` delegate callback that the same function's
+    /// `stopActivity(with:)` provokes — see the ordering invariant stated at both
+    /// ends. Nothing reads it after that: the `.stopped` branch copies it into a
+    /// local before opening the `endCollection` chain, so a stalled chain cannot
+    /// come back later and read a value that belongs to a different attempt.
+    private var isDiscarding = false
 
     private(set) var isActive = false
 
@@ -66,6 +80,11 @@ final class WorkoutSessionManager: NSObject {
         currentHeartRate = nil
         activeEnergyBurned = nil
         startupError = nil
+        // Reset with the rest of this attempt's state rather than at the end of the
+        // last one — see `completeFinish()` for why the teardown is the wrong place.
+        // `finish(discardingWorkout:completion:)` writes it again before anything
+        // can read it, so this is the belt to that braces.
+        isDiscarding = false
 
         let startDate = Date()
         session.startActivity(with: startDate)
@@ -157,12 +176,33 @@ final class WorkoutSessionManager: NSObject {
     /// Runs the spec's exact stop/finalize chain and, once the session has fully
     /// ended, hands back `(averageHeartRate, activeEnergyBurned)`. If no session
     /// was ever started, calls back immediately with `(nil, nil)`.
-    func finish(completion: @escaping (Double?, Double?) -> Void) {
+    ///
+    /// Pass `discardingWorkout: true` and the chain calls
+    /// `HKWorkoutBuilder.discardWorkout()` in place of `finishWorkout(completion:)`,
+    /// so nothing is saved. That is the exit for an attempt the athlete never meant
+    /// to begin — a complication tap they never touched — and the completion still
+    /// fires, because the caller has a screen to leave either way.
+    ///
+    /// Residue, stated rather than pretended away: Apple documents that "samples
+    /// that were added to the workout will not be deleted", so the heart-rate and
+    /// active-energy samples HealthKit already wrote stay in Health. After a
+    /// sub-two-minute untouched attempt that is a handful of samples and no
+    /// workout, which is the best outcome available without deleting objects this
+    /// app did not create.
+    func finish(discardingWorkout: Bool = false, completion: @escaping (Double?, Double?) -> Void) {
         guard let session else {
             completion(nil, nil)
             return
         }
         finishCompletion = completion
+
+        // ORDERING INVARIANT, and it is load-bearing: the flag has to be set before
+        // `stopActivity(with:)`, because it is read inside the `.stopped` delegate
+        // callback and that callback is delivered asynchronously. Setting it after
+        // the stop call is a race that silently writes the very HKWorkout this flag
+        // exists to prevent. The read end says the same thing.
+        isDiscarding = discardingWorkout
+
         // Close any open per-movement activity first: an activity left open when
         // the session stops has no end date, and HealthKit would either drop it
         // or clamp it to the workout end, losing the final movement's timing.
@@ -194,6 +234,14 @@ final class WorkoutSessionManager: NSObject {
         finishCompletion = nil
         isActive = false
         currentActivityMovement = nil
+        // `isDiscarding` is deliberately NOT cleared here with the rest of the
+        // teardown. This function is also what the 10-second `finishTimeout` calls
+        // to unstick a stalled chain, and that path can run *before* the `.stopped`
+        // callback reads the flag — clearing it here would let a stalled discard
+        // save the very HKWorkout it was asked to throw away. It is reset in
+        // `start()` instead, with the rest of the next attempt's state. Where it is
+        // reset is no longer load-bearing beyond that, because the `.stopped`
+        // branch copies the flag into a local the moment the stop lands.
         let averageHeartRate = heartRateSamples.isEmpty
             ? nil
             : heartRateSamples.reduce(0, +) / Double(heartRateSamples.count)
@@ -210,10 +258,31 @@ extension WorkoutSessionManager: HKWorkoutSessionDelegate {
     ) {
         switch toState {
         case .stopped:
-            builder?.endCollection(withEnd: date) { [weak self] _, _ in
-                guard let self else { return }
-                self.builder?.finishWorkout { [weak self] _, _ in
-                    self?.session?.end()
+            // The read end of the ordering invariant, and everything this chain
+            // needs is bound HERE, at stop time, rather than read off `self` when
+            // the completion eventually runs.
+            //
+            // That is not tidiness. `endCollection` can stall past the 10-second
+            // `finishTimeout`, and that timeout is what hands the athlete back to
+            // the Start screen — so by the time this completion fires, `start()`
+            // may already have cleared `isDiscarding` and swapped in a new session
+            // and builder for the attempt the athlete just began. Reading them then
+            // would call `finishWorkout()` on the NEW builder under the OLD
+            // attempt's instruction: an HKWorkout written for a session three
+            // seconds old, and `end()` called on the clock still running.
+            //
+            // Binding closes that window. This chain can only ever act on the pair
+            // that actually stopped, and the flag it acts on is the one that was
+            // set before this session was told to stop.
+            guard workoutSession === session, let builder else { return }
+            let discarding = isDiscarding
+
+            builder.endCollection(withEnd: date) { _, _ in
+                if discarding {
+                    builder.discardWorkout()
+                    workoutSession.end()
+                } else {
+                    builder.finishWorkout { _, _ in workoutSession.end() }
                 }
             }
         case .ended:

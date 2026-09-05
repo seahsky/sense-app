@@ -23,7 +23,13 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Build SenseApp (embeds SenseWatch)
+      - name: Build SenseApp (embeds SenseWatch, which embeds SenseComplication)
+        # The complication needs no step of its own. The SenseApp scheme reaches the
+        # SenseComplication appex transitively — SenseApp embeds SenseWatch, and
+        # SenseWatch embeds the appex into its PlugIns/ folder — so an Info.plist or
+        # bundle-identifier mistake in the extension fails right here.
+        # ValidateEmbeddedBinary runs even with CODE_SIGNING_ALLOWED=NO, which is what
+        # catches a bundle identifier not prefixed by the watch app's own.
         run: |
           xcodebuild build \
             -project Sense.xcodeproj \

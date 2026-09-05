@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Hand-authored, exactly like SenseApp/Info.plist and SenseWatch/Info.plist,
+	     and GENERATE_INFOPLIST_FILE stays off for this target. That is not just
+	     consistency: Xcode 26.6 has no INFOPLIST_KEY_NSExtension build setting at
+	     all, so a generated plist would silently omit the NSExtension block below
+	     and the complication would build, install, and then never appear in the
+	     watch face gallery. A missing key is not a build error anywhere in that
+	     chain. -->
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>SENSE</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+
+	<!-- Substituted rather than literal. An app-extension target expands
+	     $(PRODUCT_BUNDLE_PACKAGE_TYPE) to XPC! (verified in the built appex);
+	     copying the watch app's literal APPL here would describe this bundle as
+	     an application, which is what it is embedded inside, not what it is. -->
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+
+	<!-- The entire extension declaration, and deliberately the whole of it.
+	     NSExtensionPointIdentifier is what makes this a WidgetKit extension
+	     rather than any of the other twenty-odd extension points.
+
+	     No NSExtensionPrincipalClass: WidgetKit finds the entry point through the
+	     @main WidgetBundle (SenseComplicationBundle.swift), not through a class
+	     name in a plist.
+
+	     No CLKComplicationSupportedFamilies and no ClockKit keys of any kind.
+	     Those belong to the pre-watchOS-9 ClockKit complication model, which this
+	     app does not use; the supported families are declared in Swift, on the
+	     WidgetConfiguration, via .supportedFamilies([...]) in
+	     StartCindyComplication.swift. Adding them here would not extend that list,
+	     it would just be a second, unread copy of it. -->
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.widgetkit-extension</string>
+	</dict>
+</dict>
+</plist>

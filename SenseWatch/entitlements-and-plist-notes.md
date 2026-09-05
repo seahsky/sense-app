@@ -41,6 +41,17 @@ already exist in this directory.
     and `CMAltimeter` was made to require the key in iOS 17.4 without ever being
     added to that list. One string is cheaper than a crash on first sensor read
     mid-AMRAP.
+  - `CFBundleURLTypes` — registers the `sense` scheme (`CFBundleURLName`
+    `com.senseapp.ios.watchkitapp.deeplink`, `CFBundleTypeRole` `Editor`), which is
+    how the complication's `widgetURL` reaches this app as
+    `sense://start?variant=<rawValue>`.
+    The parser is `Packages/SenseKit/Sources/SenseKit/Routing/SenseDeepLink.swift`,
+    and it is the only place in the repo that parses an incoming URL.
+    Whether `widgetURL` strictly *requires* the scheme to be registered cannot be
+    settled locally: `xcrun simctl openurl` is unsupported on the watchOS simulator
+    and fails with `LSApplicationWorkspaceErrorDomain` 115 even for `music://`.
+    One block ends the argument, and the failure it guards against is only
+    reproducible on a wrist.
 - `SenseWatch/SenseWatch.entitlements` — `com.apple.developer.healthkit` = `true`.
 - `SenseWatch/Assets.xcassets/` — catalog skeleton with an `AppIcon.appiconset`
   (single 1024×1024 "universal"/watchos slot, no image assigned yet — add a
@@ -90,6 +101,86 @@ already exist in this directory.
    iOS rejects the install outright unless the watch app's bundle identifier is
    the companion iOS app's identifier followed by a dot and one more segment
    (`MIInstallerErrorDomain` 101, `WatchKitAppBundleIDNotPrefixed`).
+
+## What `project.yml` needs for the new `SenseComplication` target
+
+The watchOS WidgetKit complication ships as an app extension embedded inside this
+watch app.
+Everything below is a rule that fails quietly, expensively, or both.
+
+1. **`type: app-extension`, not `watchkit2-extension`.**
+   `app-extension` maps to `com.apple.product-type.app-extension`, which is what
+   Xcode 26's own watchOS Widget Extension template uses.
+   `watchkit2-extension` is the legacy WatchKit Extension product type and is a
+   different thing entirely.
+
+2. **`PRODUCT_BUNDLE_IDENTIFIER` must be prefixed by the WATCH app's identifier**,
+   so `com.senseapp.ios.watchkitapp.complication` and never
+   `com.senseapp.ios.complication`.
+   This is the same rule as §5 of the SenseWatch list above, one level deeper, but
+   it fails earlier and louder: it is a **build** failure at
+   `ValidateEmbeddedBinary`, not an install failure, reading
+   `error: Embedded binary's bundle identifier is not prefixed with the parent
+   app's bundle identifier.`
+   It fires even with `CODE_SIGNING_ALLOWED=NO`, so CI catches a wrong prefix on
+   the first push.
+
+3. **Embed on `SenseWatch`, not on `SenseApp`.**
+   `- target: SenseComplication` with `embed: true` and `codeSign: true` goes in
+   `SenseWatch`'s `dependencies`.
+   That is what produces the `PBXCopyFilesBuildPhase` with `dstSubfolderSpec = 13`
+   (PlugIns), and the built path to check is
+   `SENSE.app/Watch/SENSE Watch.app/PlugIns/SENSE Complication.appex`.
+
+4. **`INFOPLIST_FILE`: `SenseComplication/Info.plist`, with
+   `GENERATE_INFOPLIST_FILE` off — and this one has no escape hatch.**
+   Xcode 26.6 has no `INFOPLIST_KEY_NSExtension` build setting at all, so a
+   generated plist cannot carry the `NSExtension` dictionary in any spelling.
+   Turning generation on therefore drops `NSExtensionPointIdentifier` =
+   `com.apple.widgetkit-extension` silently.
+   The result is not a build error: it is a complication that never appears in the
+   face gallery, with nothing to read anywhere explaining why.
+
+5. **No `CODE_SIGN_ENTITLEMENTS`, and no entitlements file to point it at.**
+   The extension reads no HealthKit and no Core Motion; it draws a mark and hands
+   the app a URL.
+   `SenseWatch.entitlements` stays HealthKit-only and is untouched by this target.
+
+6. **No asset catalog, and no `ASSETCATALOG_COMPILER_*` settings.**
+   A watch complication takes its tint from the face, so there is nothing for a
+   catalog to do here, and a third `AccentColor.colorset` would put a hex literal
+   outside `SenseColor` — the design system's one rule.
+
+7. **Do not add `WatchConnectivityBridge.shared.activate()` here for symmetry, and
+   do not open a `ModelContainer` here.**
+   Linking SenseKit pulls WatchConnectivity and SwiftData symbols into a process
+   that uses neither, which is harmless exactly as long as nothing calls them.
+   Activating a `WCSession` in an extension with nothing to send, or opening a
+   second SwiftData reader against the app's container while a workout is running,
+   is a real bug wearing the costume of consistency.
+
+8. **`excludes` on the source paths of all three app targets — this one,
+   `SenseWatch`, and `SenseApp`.**
+   Every `sources` entry is a whole directory, so without
+   `excludes: ["**/*.md"]` every Markdown file in them ships inside the built app
+   as a bundle resource — including this one, which it has been doing since the
+   watch target was first wired.
+   That is the pre-existing bug the line fixes, not a new requirement of the
+   complication.
+   `SenseApp` had the identical defect and takes the identical line; the note for
+   that half belongs in `SenseApp/entitlements-and-plist-notes.md`.
+   Verified rather than assumed: a `find` of the built `SENSE.app` for `*.md`
+   returns nothing in Debug or Release, while both source files are still on disk.
+   If the exclude ever misbehaves, drop it and move these notes into `docs/`
+   instead.
+
+9. **CI never signs anything, so automatic signing for this bundle identifier is
+   unverified until someone builds to a device.**
+   `CODE_SIGNING_ALLOWED=NO` means the Actions build proves the prefix rule in item 2
+   and nothing else.
+   Xcode normally registers the App ID for
+   `com.senseapp.ios.watchkitapp.complication` under team `PGK46N254T` on the first
+   device build; a missing App ID will not show up before then.
 
 ## One HealthKit implementation note for whoever reviews the Swift side
 
